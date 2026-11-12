@@ -587,7 +587,7 @@ th.tcol-img{width:54px}
                 <li>Microsoft 365同期：設定の「Microsoft 365 クラウド同期」でサインインすると、SharePointリスト経由で全端末が同じ在庫を共有できます（社外からの確認も可能。写真も同期されます）。</li>
                 <li>毎月の棚卸時にバックアップ（JSON）やCSVを出力して保管することを推奨します。</li>
               </ul>
-              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 2.4.1（車両＝出張倉庫モデル）｜札幌中野冷機株式会社</p>
+              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 2.4.2（車両＝出張倉庫モデル）｜札幌中野冷機株式会社</p>
             </div>
           </div>
         </div>
@@ -3241,7 +3241,7 @@ async function cInitMsal(){
       authority:'https://login.microsoftonline.com/organizations',
       redirectUri:location.origin+location.pathname},cache:{cacheLocation:'localStorage'}});
     await C.pca.initialize();
-    try{const rr=await C.pca.handleRedirectPromise();if(rr&&rr.account)C.account=rr.account;}catch(e){}
+    try{const rr=await C.pca.handleRedirectPromise();if(rr&&rr.account){C.account=rr.account;let rs='';try{rs=sessionStorage.getItem('zaiko_resume_signin')||'';}catch(_e){}if(rs){try{sessionStorage.removeItem('zaiko_resume_signin');}catch(_e){}setTimeout(function(){try{cSignIn();}catch(_e){}},150);return;}}}catch(e){}
   }
 }
 async function cResolveSite(urlInput){
@@ -3583,8 +3583,10 @@ async function cSignIn(){
     C.lastErr='';
     await cInitMsal();
     if(!C.account){
-      const r=await C.pca.loginPopup({scopes:C_SCOPES,prompt:'select_account'});
-      C.account=r.account;
+      try{sessionStorage.setItem('zaiko_resume_signin','1');}catch(_e){}
+      toast('Microsoftのログイン画面へ移動します…');
+      await C.pca.loginRedirect({scopes:C_SCOPES,prompt:'select_account'});
+      return;
     }
     if(!C.cfg.siteId||!C.cfg.listP||!C.cfg.listM){
       await cConnect((document.getElementById('cSiteUrl')||{}).value||'');
