@@ -591,7 +591,7 @@ window.addEventListener('unhandledrejection',function(e){esh('未処理の例外
                 <li>Microsoft 365同期：設定の「Microsoft 365 クラウド同期」でサインインすると、SharePointリスト経由で全端末が同じ在庫を共有できます（社外からの確認も可能。写真も同期されます）。</li>
                 <li>毎月の棚卸時にバックアップ（JSON）やCSVを出力して保管することを推奨します。</li>
               </ul>
-              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.18（部品コード列対応）（送信失敗の原因表示）｜札幌中野冷機株式会社</p>
+              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.19（403原因の特定表示）（送信失敗の原因表示）｜札幌中野冷機株式会社</p>
             </div>
           </div>
         </div>
@@ -3513,7 +3513,7 @@ async function cBatchPush(ops){
         if(op.kind==='editV'){C.vItems[op.key]=null;C.dirtyV.add(op.key);}
         if(op.kind==='editZ'){C.zItems[op.key]=null;C.dirtyZ.add(op.key);}
       }else if(rr.status===403){
-        C.lastErr='権限不足です（Sites.ReadWrite.All／Sites.Manage.Allの管理者同意を確認してください）';
+        C.lastErr='権限不足（HTTP 403）：'+op.method+' '+String(op.url).replace('/sites/','サイト/')+'｜管理者同意（Sites.ReadWrite.All／Sites.Manage.All）を確認してください';
       }else{C.failOps=(C.failOps||0)+1;const em=(rr.body&&rr.body.error&&rr.body.error.message)?String(rr.body.error.message):'';if(em)C.lastErr='送信エラー（HTTP '+rr.status+'）：'+em.slice(0,150);}
     });
   }
@@ -3750,7 +3750,7 @@ function cSignOut(){
 })();
 setInterval(()=>{if(document.visibilityState==='visible'&&C.ready&&!C.syncing)cSync(false).catch(()=>{});},60000);
 /* ================= 自動更新チェック ================= */
-const APP_VER='3.18';let updChk=false;
+const APP_VER='3.19';let updChk=false;
 function cmpV(a,b){const pa=String(a).split('.').map(Number),pb=String(b).split('.').map(Number);
   for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i]||0,y=pb[i]||0;if(x!==y)return x-y;}return 0;}
 async function checkUpdate(){
