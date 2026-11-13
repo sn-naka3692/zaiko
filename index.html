@@ -506,7 +506,7 @@ window.addEventListener('unhandledrejection',function(e){esh('未処理の例外
               <p class="set-note">在庫データを御社のMicrosoft 365（SharePoint）に保存し、パソコン・スマホ・社外のすべての端末で同じ在庫を共有します。従業員は会社のMicrosoftアカウントでサインインします。データは御社テナントの外には出ません。</p>
               <div class="set-note" id="cloudStatus" style="margin-top:8px;padding:8px 10px;background:rgba(51,169,242,.08);border-radius:8px">状態: 確認中…</div>
               <label class="fl" style="margin-top:12px">アプリケーション（クライアント）ID</label>
-              <div style="display:flex;gap:10px"><input id="cClientId" class="inp" style="flex:1" placeholder="Entra管理センターで登録したIDを貼り付け"><button class="btn btn-ghost" id="btnCloudCfg" type="button">保存</button></div>
+              <div style="display:flex;gap:10px;margin-bottom:10px"><input id="appLockPw" type="password" class="inp" style="flex:1" placeholder="アプリパスワード（この端末のロック）"><button class="btn btn-ghost" id="btnAppLock" type="button">設定</button></div><div style="display:flex;gap:10px"><input id="cClientId" class="inp" style="flex:1" placeholder="Entra管理センターで登録したIDを貼り付け"><button class="btn btn-ghost" id="btnCloudCfg" type="button">保存</button></div>
               <label class="fl" style="margin-top:10px">SharePointサイトのURL（空欄なら既定のチームサイト）</label>
               <div style="display:flex;gap:10px"><input id="cSiteUrl" class="inp" style="flex:1" placeholder="https://xxxx.sharepoint.com/sites/xxxx"><button class="btn btn-ghost" id="btnCloudSite" type="button">接続</button></div>
               <label class="fl" style="margin-top:10px">部品リスト名（既存リストに接続する場合はその名前）</label>
@@ -591,7 +591,7 @@ window.addEventListener('unhandledrejection',function(e){esh('未処理の例外
                 <li>Microsoft 365同期：設定の「Microsoft 365 クラウド同期」でサインインすると、SharePointリスト経由で全端末が同じ在庫を共有できます（社外からの確認も可能。写真も同期されます）。</li>
                 <li>毎月の棚卸時にバックアップ（JSON）やCSVを出力して保管することを推奨します。</li>
               </ul>
-              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.27（掛け率計算・同期表示）（送信失敗の原因表示）｜札幌中野冷機株式会社</p>
+              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.28（アプリロック）（送信失敗の原因表示）｜札幌中野冷機株式会社</p>
             </div>
           </div>
         </div>
@@ -3776,7 +3776,11 @@ function cSignOut(){
 }
 (function(){
   const $id=i=>document.getElementById(i);
-  const bc=$id('btnCloudCfg');if(bc)bc.addEventListener('click',()=>{C.cfg.clientId=($id('cClientId').value||'').trim();csaveCfg();updateCloudUI();toast('保存しました');});
+  const blLk=$id('btnAppLock');if(blLk)blLk.addEventListener('click',function(){var v=($id('appLockPw').value||'').trim();
+  if(!v){window.zaikoSetLock('');try{sessionStorage.removeItem('zaiko_unlock');}catch(e){}toast('この端末のロックを解除しました');$id('appLockPw').value='';return;}
+  if(v.length<4){toast('パスワードは4文字以上にしてください','err');return;}
+  window.zaikoSetLock(v);try{sessionStorage.setItem('zaiko_unlock','1');}catch(e){}$id('appLockPw').value='';toast('この端末にロックを設定しました');});
+const bc=$id('btnCloudCfg');if(bc)bc.addEventListener('click',()=>{C.cfg.clientId=($id('cClientId').value||'').trim();csaveCfg();updateCloudUI();toast('保存しました');});
   const bl=$id('btnCloudListCfg');if(bl)bl.addEventListener('click',()=>{C.cfg.listPName=($id('cListPName').value||'').trim();csaveCfg();updateCloudUI();toast('保存しました（次回の接続時に適用されます）');});
   const bs=$id('btnCloudSite');if(bs)bs.addEventListener('click',async()=>{try{C.lastErr='';await cInitMsal();if(!C.account){toast('先にサインインしてください','err');return;}await cConnect($id('cSiteUrl').value||'');updateCloudUI();toast('サイトに接続しました');await cSync(true);}catch(e){C.lastErr=String(e.message||e);updateCloudUI();toast(String(e.message||e),'err');}});
   const bi=$id('btnCloudSignIn');if(bi)bi.addEventListener('click',cSignIn);
@@ -3801,7 +3805,7 @@ function cSignOut(){
 })();
 setInterval(()=>{if(document.visibilityState==='visible'&&C.ready&&!C.syncing)cSync(false).catch(()=>{});},60000);
 /* ================= 自動更新チェック ================= */
-const APP_VER='3.27';let updChk=false;
+const APP_VER='3.28';let updChk=false;
 function cmpV(a,b){const pa=String(a).split('.').map(Number),pb=String(b).split('.').map(Number);
   for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i]||0,y=pb[i]||0;if(x!==y)return x-y;}return 0;}
 async function checkUpdate(){
@@ -5096,6 +5100,34 @@ try{const _rc=refreshChrome;refreshChrome=function(){_rc();updateBanner();};}cat
 try{document.addEventListener('click',function(e){const t=e.target&&e.target.closest?e.target.closest('#btnCloudSync'):null;if(t&&!C.ready)toast('未接続です','err');if(t&&C.ready&&!C.syncing)cSync(true);},true);}catch(e){}
 document.addEventListener('click',e=>{if(e.target&&e.target.id==='bnX'){bnDismissed=true;updateBanner();}});
 updateBanner();
+/* --- v3.28 アプリロック（端末単位） --- */
+(function(){
+  var LP='nakano_zaiko_lock';
+  function getLock(){try{return (JSON.parse(localStorage.getItem(LP)||'null')||{}).pw||'';}catch(e){return '';}}
+  window.zaikoSetLock=function(pw){try{localStorage.setItem(LP,JSON.stringify({pw:String(pw||'')}));}catch(e){}};
+  window.zaikoGetLock=getLock;
+  function showLock(){
+    var o=document.createElement('div');o.id='zaikoLock';
+    o.style.cssText='position:fixed;left:0;right:0;top:0;bottom:0;z-index:99990;background:#F0F7FD;display:flex;align-items:center;justify-content:center';
+    o.innerHTML='<div style="background:#fff;border:1px solid #CFE3F7;border-radius:14px;padding:26px 22px;width:300px;max-width:88%;box-shadow:0 8px 24px rgba(20,80,150,.12);text-align:center">'+
+      '<div style="font-size:30px">🔒</div><div style="font-weight:700;color:#14508A;margin:8px 0 2px">札幌中野冷機　在庫</div>'+
+      '<div style="font-size:12px;color:#6b7d92;margin-bottom:14px">この端末はロックされています</div>'+
+      '<input id="zaikoLockPw" type="password" autocomplete="off" class="inp" style="width:100%;text-align:center;font-size:18px" placeholder="パスワード">'+
+      '<button id="zaikoLockGo" type="button" class="btn" style="width:100%;margin-top:10px">解除</button>'+
+      '<div id="zaikoLockErr" style="font-size:12px;color:#c0392b;margin-top:8px;min-height:16px"></div>'+
+      '<div style="font-size:11px;color:#8aa0b8;margin-top:6px">パスワードを忘れた場合は管理者へ（端末のサイトデータ削除で初期化できます）</div></div>';
+    document.body.appendChild(o);
+    var ip=document.getElementById('zaikoLockPw');
+    function go(){var pw=getLock();if(pw&&ip.value===pw){try{sessionStorage.setItem('zaiko_unlock','1');}catch(e){}o.remove();}else{var er=document.getElementById('zaikoLockErr');if(er)er.textContent='パスワードが違います';ip.value='';}}
+    document.getElementById('zaikoLockGo').addEventListener('click',go);
+    ip.addEventListener('keydown',function(e){if(e.key==='Enter')go();});
+    setTimeout(function(){try{ip.focus();}catch(e){}},120);
+  }
+  try{
+    if(getLock()){var un=null;try{un=sessionStorage.getItem('zaiko_unlock');}catch(e){}
+      if(un!=='1'){var _w=function(){if(document.body)showLock();else setTimeout(_w,60);};_w();}}
+  }catch(e){}
+})();
 
 /* ================= 車両在庫・現場受取（v2.3） ================= */
 if(!Array.isArray(S.vehicles))S.vehicles=[];
@@ -6038,6 +6070,7 @@ var GD_SECTION=
     '<div class="gd-step"><span class="n">2</span><h4>その原価はもう経費になった？</h4><p>工事原価や消耗品費として一度落ちた残材は、<b>0円在庫</b>。まだ落ちていない仕入在庫は<b>通常在庫</b>。</p><div class="ans">→ ここが唯一の分岐点</div></div>'+
     '<div class="gd-step"><span class="n">3</span><h4>出すときは在庫区分を選ぶ</h4><p>入出庫画面の「在庫区分」で 通常／0円 を選ぶ。0円を選ぶと原価は自動で0円になります。</p></div>'+
     '<div class="gd-step"><span class="n">4</span><h4>見積に載せる金額は？</h4><p>通常は定価、0円在庫は<input class="inp" style="width:0;height:0;padding:0;border:0" tabindex="-1">売価（使用時点の適正売価）。「出荷と売価」画面から案件ごとにCSVで出せます。</p></div>'+
+   '<div class="gd-step"><span class="n">5</span><h4>端末にロックをかける（おすすめ）</h4><p>設定 →「アプリパスワード（この端末のロック）」に<strong>4文字以上</strong>のパスワードを入力 →「設定」。次回アプリを開くときに解除パスワードが必要になります（ブラウザを閉じている間も有効）。ロックをやめるときは<strong>空欄のまま「設定」</strong>。パスワードを忘れた場合は管理者に相談してください（端末のサイトデータ削除で初期化できます。データはクラウドから自動復元されます）。</p></div>'+
   '</div>'+
 
   '<div class="gd-card"><h3>これだけ見れば決まります</h3><p class="lead">現場で迷ったら、この表の「状況」を探してください。</p>'+
