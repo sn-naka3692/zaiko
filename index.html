@@ -3819,7 +3819,7 @@ const bc=$id('btnCloudCfg');if(bc)bc.addEventListener('click',()=>{C.cfg.clientI
 })();
 setInterval(()=>{if(document.visibilityState==='visible'&&C.ready&&!C.syncing)cSync(false).catch(()=>{});},60000);
 /* ================= 自動更新チェック ================= */
-const APP_VER='3.29';let updChk=false;
+const APP_VER='3.30';let updChk=false;
 function cmpV(a,b){const pa=String(a).split('.').map(Number),pb=String(b).split('.').map(Number);
   for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i]||0,y=pb[i]||0;if(x!==y)return x-y;}return 0;}
 async function checkUpdate(){
@@ -6085,6 +6085,20 @@ var GD_SECTION=
     '<div class="gd-step"><span class="n">3</span><h4>出すときは在庫区分を選ぶ</h4><p>入出庫画面の「在庫区分」で 通常／0円 を選ぶ。0円を選ぶと原価は自動で0円になります。</p></div>'+
     '<div class="gd-step"><span class="n">4</span><h4>見積に載せる金額は？</h4><p>通常は定価、0円在庫は<input class="inp" style="width:0;height:0;padding:0;border:0" tabindex="-1">売価（使用時点の適正売価）。「出荷と売価」画面から案件ごとにCSVで出せます。</p></div>'+
    '<div class="gd-step"><span class="n">5</span><h4>端末にロックをかける（おすすめ）</h4><p>設定 →「アプリパスワード（この端末のロック）」に<strong>4文字以上</strong>のパスワードを入力 →「設定」。次回アプリを開くときに解除パスワードが必要になります（ブラウザを閉じている間も有効）。ロックをやめるときは<strong>空欄のまま「設定」</strong>。パスワードを忘れた場合は管理者に相談してください（端末のサイトデータ削除で初期化できます。データはクラウドから自動復元されます）。</p></div>'+
+    '  <details style="margin:14px 0 0;background:#EAF3FC;border:1px solid #dce9f5;border-radius:10px;padding:10px 14px">'
++'    <summary style="cursor:pointer;font-weight:700;color:#0F6BF0">📐 アプリの設計図と改訂履歴（全員に公開）</summary>'
++'    <div style="font-size:12.5px;line-height:1.8;margin-top:8px">'
++'      <p style="margin:0 0 4px"><b>■ 全体構成</b>：このアプリはHTML1枚。GitHub Pagesで配信され、データは会社のMicrosoft 365（SharePoint）に集約。どの端末から開いても同じ在庫が見えます。入力はまず端末に保存され、オフラインでも使えます。</p>'
++'      <p style="margin:0 0 4px"><b>■ 認証</b>：会社のMicrosoftアカウントでのサインインが本体。接続先は「部品マスター」リスト（正名：札中　部品マスター）。在庫履歴・車両在庫・0円在庫のリストは自動作成。</p>'
++'      <p style="margin:0 0 4px"><b>■ データ列</b>：型式・部品番号／部品コード（正）／部品名／型式／出荷メーカー／カテゴリ／使用機種／部品関連情報／保管場所／単位／原価／定価／在庫数／発注点／社内メモ。列名の突合は全角半角・中黒・空白を無視した照合で行い、足りない列は自動追加。</p>'
++'      <p style="margin:0 0 8px"><b>■ 同期のしくみ</b>：送信＝30秒ごとに未送信を20件ずつ。受信＝5分ごと＋画面に戻った直後に全件取得。エラー（レート制限等）時は自動で待機し、失敗分は「送信失敗」行に残って自動再試行されます。</p>'
++'      <table style="border-collapse:collapse;width:100%;font-size:12px;margin-top:4px">'
++'        <tr style="background:#DCEBFB"><th style="border:1px solid #dce9f5;padding:4px 6px;text-align:left">版</th><th style="border:1px solid #dce9f5;padding:4px 6px;text-align:left">内容</th></tr>'
++'<tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.3</td><td style="border:1px solid #dce9f5;padding:4px 6px">一般公開（GitHub Pages・Entra権限修正）</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.4</td><td style="border:1px solid #dce9f5;padding:4px 6px">自動同期（30秒送信／5分受信）</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.5</td><td style="border:1px solid #dce9f5;padding:4px 6px">リスト名「札中　部品マスター」（全角スペース）対応</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.6</td><td style="border:1px solid #dce9f5;padding:4px 6px">同期ボタンに進捗表示</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.8</td><td style="border:1px solid #dce9f5;padding:4px 6px">エラー表示（赤帯errTrap）</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.9</td><td style="border:1px solid #dce9f5;padding:4px 6px">レート制限(429)対策・20件バッチ送信</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.11</td><td style="border:1px solid #dce9f5;padding:4px 6px">同期進捗「送信中 X/Y件」表示</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.13</td><td style="border:1px solid #dce9f5;padding:4px 6px">日時比較を分精度に変更（再送ループ解消）</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.14〜3.17</td><td style="border:1px solid #dce9f5;padding:4px 6px">列名突合強化（colMaps再取得・FIELDMAP検証・足りない列の自動追加・normKey照合）</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.18</td><td style="border:1px solid #dce9f5;padding:4px 6px">「部品コード」列を正とし両列に書込</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.22〜3.24</td><td style="border:1px solid #dce9f5;padding:4px 6px">読み取り専用列(Title)別名・システム列除外・5xx再試行・255字制限</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.25</td><td style="border:1px solid #dce9f5;padding:4px 6px">同期パイプライン完成（原因究明ツールculprit二分探査）</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.26</td><td style="border:1px solid #dce9f5;padding:4px 6px">0円在庫に原価欄追加（リストにもcost列自動追加）</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.27</td><td style="border:1px solid #dce9f5;padding:4px 6px">原価×掛け率の双方向計算・サイドバーに最終同期時刻</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.28</td><td style="border:1px solid #dce9f5;padding:4px 6px">アプリ起動ロック（端末単位パスワード）</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.29</td><td style="border:1px solid #dce9f5;padding:4px 6px">設定に管理者用「保守情報」を追加</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.30</td><td style="border:1px solid #dce9f5;padding:4px 6px">設計図・改訂履歴を全員向けにも公開（本節・使い方画面）</td></tr>'
++'      </table>'
++'      <p style="font-size:12px;color:#555;margin:8px 0 0">※ アプリの改版・設定変更は管理者が行います。従業員のみなさんは読むだけでOKです。</p>'
++'    </div>'
++'  </details>'+
   '</div>'+
 
   '<div class="gd-card"><h3>これだけ見れば決まります</h3><p class="lead">現場で迷ったら、この表の「状況」を探してください。</p>'+
