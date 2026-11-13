@@ -591,7 +591,7 @@ window.addEventListener('unhandledrejection',function(e){esh('未処理の例外
                 <li>Microsoft 365同期：設定の「Microsoft 365 クラウド同期」でサインインすると、SharePointリスト経由で全端末が同じ在庫を共有できます（社外からの確認も可能。写真も同期されます）。</li>
                 <li>毎月の棚卸時にバックアップ（JSON）やCSVを出力して保管することを推奨します。</li>
               </ul>
-              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.12（送信失敗の原因表示）｜札幌中野冷機株式会社</p>
+              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.13（同期ループ対策）（送信失敗の原因表示）｜札幌中野冷機株式会社</p>
             </div>
           </div>
         </div>
@@ -3379,8 +3379,9 @@ async function cPullParts(full,out){
     const lu=p.updatedAt||'';
     const ru=String(r.f[fkey(C.cfg.listP,'updatedAt')]||'');
     C.listItems[p.code]=r.itid;
-    if(ru&&ru>lu){Object.assign(p,fieldsToPart(r.f),{createdAt:p.createdAt||ru});out.partsChanged=true;}
-    else if(lu&&lu>ru){C.dirtyP.add(p.code);}
+    const lk=String(lu).slice(0,16),rk=String(ru).slice(0,16);
+    if(rk&&rk>lk){Object.assign(p,fieldsToPart(r.f),{createdAt:p.createdAt||ru});out.partsChanged=true;}
+    else if(lk&&lk>rk){C.dirtyP.add(p.code);}
   });
   Object.keys(remote).forEach(code=>{
     if(code==='__META__')return;
@@ -3477,7 +3478,7 @@ async function cPullZ(full,out){
       if(ru&&ru>(S.zAt[zc]||'')){
         if(Number(cur.q)!==rq||Number(cur.price)!==rp){S.zeroStock[zc]={q:rq,price:rp};out.zChanged=true;}
         S.zAt[zc]=ru;
-      }else if((S.zAt[zc]||'')>ru){C.dirtyZ.add(zc);}
+      }else if((S.zAt[zc]||'').slice(0,16)>ru.slice(0,16)){C.dirtyZ.add(zc);}
     });
     next=j['@odata.nextLink']||null;
   }
@@ -3735,7 +3736,7 @@ function cSignOut(){
 })();
 setInterval(()=>{if(document.visibilityState==='visible'&&C.ready&&!C.syncing)cSync(false).catch(()=>{});},60000);
 /* ================= 自動更新チェック ================= */
-const APP_VER='3.12.1';let updChk=false;
+const APP_VER='3.13';let updChk=false;
 function cmpV(a,b){const pa=String(a).split('.').map(Number),pb=String(b).split('.').map(Number);
   for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i]||0,y=pb[i]||0;if(x!==y)return x-y;}return 0;}
 async function checkUpdate(){
