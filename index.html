@@ -591,7 +591,7 @@ window.addEventListener('unhandledrejection',function(e){esh('未処理の例外
                 <li>Microsoft 365同期：設定の「Microsoft 365 クラウド同期」でサインインすると、SharePointリスト経由で全端末が同じ在庫を共有できます（社外からの確認も可能。写真も同期されます）。</li>
                 <li>毎月の棚卸時にバックアップ（JSON）やCSVを出力して保管することを推奨します。</li>
               </ul>
-              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.9（レート制限対策）｜札幌中野冷機株式会社</p>
+              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.10（更新チェック強化）｜札幌中野冷機株式会社</p>
             </div>
           </div>
         </div>
@@ -3735,13 +3735,13 @@ function cSignOut(){
 })();
 setInterval(()=>{if(document.visibilityState==='visible'&&C.ready&&!C.syncing)cSync(false).catch(()=>{});},60000);
 /* ================= 自動更新チェック ================= */
-const APP_VER='3.9';let updChk=false;
+const APP_VER='3.10';let updChk=false;
 function cmpV(a,b){const pa=String(a).split('.').map(Number),pb=String(b).split('.').map(Number);
   for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i]||0,y=pb[i]||0;if(x!==y)return x-y;}return 0;}
 async function checkUpdate(){
   if(updChk)return;updChk=true;
   try{
-    const r=await fetch('index.html?t='+Date.now(),{cache:'no-store'});
+    const r=await fetch('index.html?t='+Date.now(),{cache:'no-store'})||'index.html?t='+Date.now(),{cache:'no-store'});
     if(!r.ok)return;
     const t=await r.text();
     const m=t.match(/APP_VER='(\d+(?:\.\d+){0,2})'/);
