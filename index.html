@@ -587,7 +587,7 @@ th.tcol-img{width:54px}
                 <li>Microsoft 365同期：設定の「Microsoft 365 クラウド同期」でサインインすると、SharePointリスト経由で全端末が同じ在庫を共有できます（社外からの確認も可能。写真も同期されます）。</li>
                 <li>毎月の棚卸時にバックアップ（JSON）やCSVを出力して保管することを推奨します。</li>
               </ul>
-              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 2.4.2（車両＝出張倉庫モデル）｜札幌中野冷機株式会社</p>
+              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 2.6（0円在庫・売価・自動更新対応）｜札幌中野冷機株式会社</p>
             </div>
           </div>
         </div>
@@ -3103,10 +3103,11 @@ function load(){
 const CKEY='nakano_zaiko_cloud_v1';
 const LIST_P_NAME='部品マスター',LIST_M_NAME='入出庫履歴';
 const LIST_V_NAME='車両在庫';
+const LIST_Z_NAME='0円在庫';
 const GRAPH='https://graph.microsoft.com/v1.0';
 const C_SCOPES=['User.Read','Sites.ReadWrite.All','Sites.Manage.All'];
 const C={cfg:null,pca:null,account:null,ready:false,syncing:false,dirtyMeta:false,
-  dirtyP:new Set(),delP:new Set(),dirtyM:new Set(),delM:new Set(),dirtyV:new Set(),vItems:{},
+  dirtyP:new Set(),delP:new Set(),dirtyM:new Set(),delM:new Set(),dirtyV:new Set(),vItems:{},dirtyZ:new Set(),zItems:{},
   colMaps:{},colTypes:{},listItems:{},moveItems:{},flushT:null,lastErr:''};
 let SNAP=null;
 function cload(){try{C.cfg=JSON.parse(localStorage.getItem(CKEY)||'null');}catch(e){C.cfg=null;}
@@ -3115,7 +3116,8 @@ function cload(){try{C.cfg=JSON.parse(localStorage.getItem(CKEY)||'null');}catch
   C.cfg.listP=C.cfg.listP||'';C.cfg.listM=C.cfg.listM||'';C.cfg.listPName=C.cfg.listPName||'';
   C.cfg.listMName=C.cfg.listMName||'';C.cfg.lastPull=C.cfg.lastPull||'';
   C.cfg.viewOnly=!!C.cfg.viewOnly;C.cfg.colPrefix=C.cfg.colPrefix||'';
-  C.cfg.listV=C.cfg.listV||'';C.cfg.listVName=C.cfg.listVName||'';}
+  C.cfg.listV=C.cfg.listV||'';C.cfg.listVName=C.cfg.listVName||'';
+  C.cfg.listZ=C.cfg.listZ||'';C.cfg.listZName=C.cfg.listZName||'';}
 function csaveCfg(){try{localStorage.setItem(CKEY,JSON.stringify(C.cfg));}catch(e){}}
 function partCore(p){const o=Object.assign({},p);delete o.updatedAt;return JSON.stringify(o);}
 function snapshot(){SNAP={parts:{},moves:new Set(),company:S.company,vs:{},veh:'[]'};
@@ -3124,7 +3126,9 @@ function snapshot(){SNAP={parts:{},moves:new Set(),company:S.company,vs:{},veh:'
   if(S.vstock&&typeof S.vstock==='object')Object.keys(S.vstock).forEach(code=>{
     const o=S.vstock[code];if(!o||typeof o!=='object')return;
     Object.keys(o).forEach(loc=>{SNAP.vs[code+'@'+loc]=Number(o[loc])||0;});});
-  SNAP.veh=JSON.stringify(S.vehicles||[]);}
+  SNAP.veh=JSON.stringify(S.vehicles||[]);
+  SNAP.zs={};
+  if(S.zeroStock&&typeof S.zeroStock==='object')Object.keys(S.zeroStock).forEach(code=>{const o=S.zeroStock[code];if(!o||typeof o!=='object')return;SNAP.zs[code]=(Number(o.q)||0)+'@'+(Number(o.price)||0);});}
 function cSaveLocal(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}try{snapshot();}catch(e){}}
 function save(){
   if(C.cfg&&C.cfg.viewOnly){
@@ -3148,6 +3152,10 @@ function save(){
         if(sv===undefined||String(sv)!==String(curVS[k]))C.dirtyV.add(k);});
       const vj=JSON.stringify(S.vehicles||[]);
       if(vj!==SNAP.veh){S.vehAt=new Date().toISOString();C.dirtyV.add('__VEH__');}
+      if(S.zeroStock&&typeof S.zeroStock==='object'){const curZ={};
+        Object.keys(S.zeroStock).forEach(code=>{const o=S.zeroStock[code];if(!o||typeof o!=='object')return;
+          curZ[code]=(Number(o.q)||0)+'@'+(Number(o.price)||0);});
+        Object.keys(curZ).forEach(k=>{if((SNAP.zs||{})[k]!==curZ[k]){S.zAt=S.zAt||{};S.zAt[k]=now;C.dirtyZ.add(k);}});}
       if(S.company!==SNAP.company)C.dirtyMeta=true;
     }else{snapshot();}
   }catch(e){}
@@ -3285,7 +3293,9 @@ async function cEnsureLists(){
   if(!lm)lm=await cCreateList(LIST_M_NAME,[{name:'mid',text:{}},{name:'date',text:{}},{name:'type',text:{}},{name:'code',text:{}},{name:'name',text:{}},{name:'qty',number:{}},{name:'user',text:{}},{name:'job',text:{}},{name:'memo',text:{}},{name:'createdAt',text:{}}]);
   let lv=lists.find(l=>l.displayName===LIST_V_NAME);
   if(!lv)lv=await cCreateList(LIST_V_NAME,[{name:'vcode',text:{}},{name:'vloc',text:{}},{name:'qty',number:{}},{name:'updatedAt',text:{}}]);
-  C.cfg.listP=lp.id;C.cfg.listM=lm.id;C.cfg.listV=lv.id;C.cfg.listPName=lp.displayName;C.cfg.listMName=lm.displayName;C.cfg.listVName=lv.displayName;csaveCfg();
+  let lz=lists.find(l=>l.displayName===LIST_Z_NAME);
+  if(!lz)lz=await cCreateList(LIST_Z_NAME,[{name:'zcode',text:{}},{name:'qty',number:{}},{name:'price',number:{}},{name:'updatedAt',text:{}}]);
+  C.cfg.listP=lp.id;C.cfg.listM=lm.id;C.cfg.listV=lv.id;C.cfg.listZ=lz.id;C.cfg.listPName=lp.displayName;C.cfg.listMName=lm.displayName;C.cfg.listVName=lv.displayName;C.cfg.listZName=lz.displayName;csaveCfg();
   await cEnsureCols();
   C.ready=true;
 }
@@ -3324,7 +3334,7 @@ async function cEnsureCols(){
 async function cConnect(urlInput){
   await cResolveSite(urlInput);
   await cEnsureLists();
-  await cLoadCols(C.cfg.listP);await cLoadCols(C.cfg.listM);await cLoadCols(C.cfg.listV);
+  await cLoadCols(C.cfg.listP);await cLoadCols(C.cfg.listM);await cLoadCols(C.cfg.listV);if(C.cfg.listZ)await cLoadCols(C.cfg.listZ);
 }
 async function cPullParts(full,out){
   let next;
@@ -3435,6 +3445,32 @@ async function cPullV(full,out){
     next=j['@odata.nextLink']||null;
   }
 }
+async function cPullZ(full,out){
+  if(!C.cfg.listZ)return;
+  let next='/sites/'+C.cfg.siteId+'/lists/'+C.cfg.listZ+'/items?expand=fields&top=999';
+  while(next){
+    const r=await gfetch(next);
+    if(!r.ok)throw new Error('0円在庫リストの読み込みに失敗しました（HTTP '+r.status+'）');
+    const j=await r.json();
+    (j.value||[]).forEach(it=>{
+      const f=it.fields||{};
+      const zc=String(f[fkey(C.cfg.listZ,'zcode')]||'');if(!zc)return;
+      const ru=String(f[fkey(C.cfg.listZ,'updatedAt')]||'');
+      C.zItems[zc]=it.id;
+      const rq=Number(f[fkey(C.cfg.listZ,'qty')])||0;
+      const rp=Number(f[fkey(C.cfg.listZ,'price')])||0;
+      S.zeroStock=S.zeroStock||{};S.zAt=S.zAt||{};
+      if(C.dirtyZ.has(zc))return;
+      const cur=S.zeroStock[zc];
+      if(!cur||typeof cur!=='object'){S.zeroStock[zc]={q:rq,price:rp};if(ru)S.zAt[zc]=ru;out.zChanged=true;return;}
+      if(ru&&ru>(S.zAt[zc]||'')){
+        if(Number(cur.q)!==rq||Number(cur.price)!==rp){S.zeroStock[zc]={q:rq,price:rp};out.zChanged=true;}
+        S.zAt[zc]=ru;
+      }else if((S.zAt[zc]||'')>ru){C.dirtyZ.add(zc);}
+    });
+    next=j['@odata.nextLink']||null;
+  }
+}
 async function cBatchPush(ops){
   for(let i=0;i<ops.length;i+=20){
     const chunk=ops.slice(i,i+20);
@@ -3452,6 +3488,8 @@ async function cBatchPush(ops){
         if(op.kind==='newM'||op.kind==='editM')C.dirtyM.delete(op.mid);
         if((op.kind==='newV'||op.kind==='editV')&&rr.body&&rr.body.id)C.vItems[op.key]=rr.body.id;
         if(op.kind==='newV'||op.kind==='editV')C.dirtyV.delete(op.key);
+        if((op.kind==='newZ'||op.kind==='editZ')&&rr.body&&rr.body.id)C.zItems[op.key]=rr.body.id;
+        if(op.kind==='newZ'||op.kind==='editZ')C.dirtyZ.delete(op.key);
         if(op.kind==='meta'||op.kind==='newMeta')C.dirtyMeta=false;
         if(op.kind==='delP'){C.delP.delete(op.code);C.listItems[op.code]=null;}
         if(op.kind==='delM'){C.delM.delete(op.mid);C.moveItems[op.mid]=null;}
@@ -3459,6 +3497,7 @@ async function cBatchPush(ops){
         if(op.kind==='editP'||op.kind==='delP'){C.listItems[op.code]=null;if(op.kind==='editP')C.dirtyP.add(op.code);}
         if(op.kind==='delM')C.delM.delete(op.mid);
         if(op.kind==='editV'){C.vItems[op.key]=null;C.dirtyV.add(op.key);}
+        if(op.kind==='editZ'){C.zItems[op.key]=null;C.dirtyZ.add(op.key);}
       }else if(rr.status===403){
         C.lastErr='権限不足です（Sites.ReadWrite.All／Sites.Manage.Allの管理者同意を確認してください）';
       }
@@ -3472,6 +3511,7 @@ async function cFlushCore(){
   const pBase='/sites/'+C.cfg.siteId+'/lists/'+C.cfg.listP+'/items';
   const mBase='/sites/'+C.cfg.siteId+'/lists/'+C.cfg.listM+'/items';
   const vBase='/sites/'+C.cfg.siteId+'/lists/'+C.cfg.listV+'/items';
+  const zBase='/sites/'+C.cfg.siteId+'/lists/'+C.cfg.listZ+'/items';
   // メタ同期は廃止（既存リストを汚染しないため）
   C.delP.forEach(code=>{
     const id=C.listItems[code];
@@ -3517,6 +3557,16 @@ async function cFlushCore(){
       else ops.push({method:'POST',url:vBase,body:{fields:vf},kind:'newV',key:k});
     });
   }
+  if(C.cfg.listZ&&C.dirtyZ.size){
+    C.dirtyZ.forEach(k=>{
+      const o=(S.zeroStock&&S.zeroStock[k])||{};
+      const id=C.zItems[k];
+      const zf={};zf[fkey(C.cfg.listZ,'zcode')]=k;zf[fkey(C.cfg.listZ,'qty')]=Number(o.q)||0;
+      zf[fkey(C.cfg.listZ,'price')]=Number(o.price)||0;zf[fkey(C.cfg.listZ,'updatedAt')]=(S.zAt&&S.zAt[k])||'';
+      if(id)ops.push({method:'PATCH',url:zBase+'/'+id+'/fields',body:{fields:zf},kind:'editZ',key:k});
+      else ops.push({method:'POST',url:zBase,body:{fields:zf},kind:'newZ',key:k});
+    });
+  }
   if(ops.length)await cBatchPush(ops);
 }
 async function cFlush(){
@@ -3530,12 +3580,13 @@ async function cSync(full){
   if(!C.ready||C.syncing)return;
   C.syncing=true;C.lastErr='';updateCloudUI();
   try{
-    if(full){await cLoadCols(C.cfg.listP);await cLoadCols(C.cfg.listM);await cLoadCols(C.cfg.listV);}
+    if(full){await cLoadCols(C.cfg.listP);await cLoadCols(C.cfg.listM);await cLoadCols(C.cfg.listV);if(C.cfg.listZ)await cLoadCols(C.cfg.listZ);}
     const out={partsChanged:false,movesChanged:false};
     await cPullParts(full,out);
     await cPullMoves(full,out);
     await cPullV(full,out);
-    if(out.partsChanged||out.movesChanged||out.vehChanged){
+    await cPullZ(full,out);
+    if(out.partsChanged||out.movesChanged||out.vehChanged||out.zChanged){
       cSaveLocal();refreshChrome();
       const ae=document.activeElement;
       const dlg=document.getElementById('mConfirm');
@@ -3546,7 +3597,8 @@ async function cSync(full){
     if(!C.cfg.lastPull){(S.moves||[]).forEach(m=>{if(m&&m.id)C.dirtyM.add(m.id);});
       if(C.cfg.listV){if((S.vehicles||[]).length)C.dirtyV.add('__VEH__');
         if(S.vstock&&typeof S.vstock==='object')Object.keys(S.vstock).forEach(code=>{const o=S.vstock[code];if(!o||typeof o!=='object')return;
-          Object.keys(o).forEach(loc=>{C.dirtyV.add(code+'@'+loc);});});}}
+          Object.keys(o).forEach(loc=>{C.dirtyV.add(code+'@'+loc);});});}
+      if(C.cfg.listZ&&S.zeroStock&&typeof S.zeroStock==='object')Object.keys(S.zeroStock).forEach(code=>{C.dirtyZ.add(code);});}
     C.cfg.lastPull=new Date().toISOString();csaveCfg();
     await cFlushCore();
     try{await cSyncPhotos(!!full);}catch(e){}
@@ -3555,7 +3607,7 @@ async function cSync(full){
 }
 function updateCloudUI(){
   const st=document.getElementById('cloudStatus');if(!st)return;
-  const pend=C.dirtyP.size+C.dirtyM.size+C.delP.size+C.delM.size+C.dirtyV.size+(C.dirtyMeta?1:0);
+  const pend=C.dirtyP.size+C.dirtyM.size+C.delP.size+C.delM.size+C.dirtyV.size+C.dirtyZ.size+(C.dirtyMeta?1:0);
   let s;
   if(!C.cfg.clientId)s='未設定（アプリケーションIDを入力して保存してください）';
   else if(!C.pca)s='未サインイン';
@@ -3591,9 +3643,9 @@ async function cSignIn(){
     if(!C.cfg.siteId||!C.cfg.listP||!C.cfg.listM){
       await cConnect((document.getElementById('cSiteUrl')||{}).value||'');
     }else{
-      if(!C.cfg.listV)await cEnsureLists();
+      if(!C.cfg.listV||!C.cfg.listZ)await cEnsureLists();
       C.ready=true;
-      await cLoadCols(C.cfg.listP);await cLoadCols(C.cfg.listM);await cLoadCols(C.cfg.listV);
+      await cLoadCols(C.cfg.listP);await cLoadCols(C.cfg.listM);await cLoadCols(C.cfg.listV);if(C.cfg.listZ)await cLoadCols(C.cfg.listZ);
     }
     updateCloudUI();
     toast('Microsoft 365に接続しました');
@@ -3628,14 +3680,40 @@ function cSignOut(){
   if(!accts.length){updateCloudUI();return;}
   C.account=accts[0];
   if(C.cfg.siteId&&C.cfg.listP&&C.cfg.listM){
-    if(!C.cfg.listV){try{await cEnsureLists();}catch(e){}}
+    if(!C.cfg.listV||!C.cfg.listZ){try{await cEnsureLists();}catch(e){}}
     C.ready=true;
-    await cLoadCols(C.cfg.listP);await cLoadCols(C.cfg.listM);await cLoadCols(C.cfg.listV);
+    await cLoadCols(C.cfg.listP);await cLoadCols(C.cfg.listM);await cLoadCols(C.cfg.listV);if(C.cfg.listZ)await cLoadCols(C.cfg.listZ);
     updateCloudUI();
     cSync(false).catch(()=>{});
   }else{updateCloudUI();}
 })();
 setInterval(()=>{if(document.visibilityState==='visible'&&C.ready&&!C.syncing)cSync(false).catch(()=>{});},60000);
+/* ================= 自動更新チェック ================= */
+const APP_VER='2.6';let updChk=false;
+function cmpV(a,b){const pa=String(a).split('.').map(Number),pb=String(b).split('.').map(Number);
+  for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i]||0,y=pb[i]||0;if(x!==y)return x-y;}return 0;}
+async function checkUpdate(){
+  if(updChk)return;updChk=true;
+  try{
+    const r=await fetch('index.html?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok)return;
+    const t=await r.text();
+    const m=t.match(/APP_VER='(\d+(?:\.\d+){0,2})'/);
+    if(!m)return;
+    if(cmpV(m[1],APP_VER)>0){
+      const old=document.getElementById('updBar');if(old)old.remove();
+      const b=document.createElement('div');
+      b.id='updBar';
+      b.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#0F6FBF;color:#fff;text-align:center;padding:10px 6px;font-size:13px;cursor:pointer;box-shadow:0 -2px 8px rgba(0,0,0,.15)';
+      b.textContent='新しいバージョン '+m[1]+' があります。タップして更新';
+      b.onclick=()=>location.reload();
+      document.body.appendChild(b);
+    }
+  }catch(e){}
+}
+setTimeout(checkUpdate,3000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){updChk=false;checkUpdate();}});
+
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&C.ready&&!C.syncing)cSync(false).catch(()=>{});});
 window.addEventListener('online',()=>{if(C.ready&&!C.syncing)cSync(false).catch(()=>{});});
 /* ================= 写真のクラウド同期（SharePointライブラリ） ================= */
@@ -5408,6 +5486,525 @@ function renderTakeRows(){
   });
 })();
 </script>
+<style>
+/* ===== v2.5 0円在庫・売価・ガイド ===== */
+button[data-view]>svg{width:18px;height:18px;flex:0 0 18px;stroke-width:1.9}
+.seg.seg-sm button{font-size:12px;padding:7px 10px}
+.zrow2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.zhint{font-size:11.5px;color:#5B7C99;margin-top:7px;line-height:1.55}
+.zhint b{color:#0F6FBF}
+.zchip{display:inline-block;margin-top:5px;font-size:10.5px;padding:2px 7px;border-radius:6px;background:#EAF6FE;color:#0F6FBF;border:1px solid #BFE0F7;font-weight:800;white-space:nowrap}
+.zchip.off{background:#F2F6FA;color:#8AA4BC;border-color:#DDE8F2;font-weight:700}
+.zamt{font-weight:800;color:#0F6FBF;font-size:15px;padding:9px 0}
+.fl-mini{font-weight:500;color:#7C97AE;font-size:11px}
+.gd-wrap{max-width:1120px}
+.gd-hero{background:linear-gradient(135deg,#4FBBF5,#0F6FBF);color:#fff;border-radius:16px;padding:22px 24px;margin-bottom:14px;box-shadow:0 10px 26px rgba(15,111,191,.18)}
+.gd-hero h2{font-size:19px;font-weight:800;margin:0 0 6px;color:#fff}
+.gd-hero p{margin:0;font-size:13px;line-height:1.6;opacity:.95}
+.gd-hero .pill{display:inline-block;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.45);border-radius:20px;padding:3px 11px;font-size:11px;font-weight:800;margin-bottom:10px}
+.gd-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+@media(max-width:980px){.gd-steps{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.gd-steps{grid-template-columns:1fr}}
+.gd-step{background:#fff;border:1px solid #D9E9F7;border-radius:14px;padding:14px 15px;position:relative}
+.gd-step .n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#EAF6FE;color:#0F6FBF;font-size:11px;font-weight:800;margin-bottom:8px}
+.gd-step h4{margin:0 0 6px;font-size:13px;font-weight:800;color:#0B2F52;line-height:1.4}
+.gd-step p{margin:0;font-size:12px;color:#5B7C99;line-height:1.6}
+.gd-step .ans{margin-top:8px;font-size:12px;font-weight:800;color:#0F6FBF}
+.gd-card{background:#fff;border:1px solid #D9E9F7;border-radius:14px;padding:16px 18px;margin-bottom:14px}
+.gd-card h3{margin:0 0 4px;font-size:14px;font-weight:800;color:#0B2F52}
+.gd-card .lead{margin:0 0 12px;font-size:12px;color:#5B7C99;line-height:1.6}
+.gd-table{width:100%;border-collapse:collapse;font-size:12px}
+.gd-table th{background:#F2F9FE;color:#3E6685;font-weight:800;text-align:left;padding:8px 9px;border-bottom:1px solid #D9E9F7;white-space:nowrap}
+.gd-table td{padding:9px;border-bottom:1px solid #EDF4FA;color:#22445F;vertical-align:top;line-height:1.55}
+.gd-table tr:last-child td{border-bottom:none}
+.gd-table .k{font-weight:800;color:#0B2F52;white-space:nowrap}
+.gd-b{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:6px;white-space:nowrap}
+.gd-b.ok{background:#E7F6EE;color:#1B7F4B}
+.gd-b.z{background:#EAF6FE;color:#0F6FBF}
+.gd-b.ng{background:#FDECEA;color:#C0392B}
+.gd-qa{border-top:1px solid #EDF4FA;padding:12px 0}
+.gd-qa:first-of-type{border-top:none;padding-top:0}
+.gd-qa .q{font-size:12.5px;font-weight:800;color:#0B2F52;margin-bottom:5px}
+.gd-qa .q::before{content:"Q. ";color:#33A9F2}
+.gd-qa .a{font-size:12px;color:#4A6B85;line-height:1.7;margin:0}
+.gd-ng{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:900px){.gd-ng{grid-template-columns:1fr}}
+.gd-ng div{background:#FFF8F7;border:1px solid #F6D7D1;border-radius:12px;padding:12px 13px}
+.gd-ng b{display:block;font-size:12px;color:#C0392B;margin-bottom:4px}
+.gd-ng span{font-size:11.5px;color:#7A5A54;line-height:1.6}
+.gd-stat{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+@media(max-width:780px){.gd-stat{grid-template-columns:repeat(2,1fr)}}
+.gd-stat div{background:#fff;border:1px solid #D9E9F7;border-radius:14px;padding:13px 14px}
+.gd-stat .l{font-size:10.5px;font-weight:800;color:#7C97AE;letter-spacing:.03em}
+.gd-stat .v{font-size:19px;font-weight:800;color:#0F6FBF;margin-top:3px}
+.gd-stat .s{font-size:10.5px;color:#8AA4BC;margin-top:2px}
+.qt-kpi{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px}
+@media(max-width:980px){.qt-kpi{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:620px){.qt-kpi{grid-template-columns:repeat(2,1fr)}}
+.qt-kpi div{background:#fff;border:1px solid #D9E9F7;border-radius:14px;padding:13px 14px}
+.qt-kpi .l{font-size:10.5px;font-weight:800;color:#7C97AE}
+.qt-kpi .v{font-size:18px;font-weight:800;color:#0B2F52;margin-top:3px}
+.qt-kpi .v.blue{color:#0F6FBF}
+.qt-kpi .v.green{color:#1B7F4B}
+.qt-kpi .s{font-size:10.5px;color:#8AA4BC;margin-top:2px}
+.qt-tag{display:inline-block;font-size:10px;font-weight:800;padding:1px 6px;border-radius:5px;background:#EAF6FE;color:#0F6FBF;border:1px solid #BFE0F7}
+.qt-tag.n{background:#F2F6FA;color:#7189A0;border-color:#DDE8F2}
+</style>
+<script>
+/* =====================================================================
+   v2.5 パッチ
+   1) 0円在庫（工事残材）を同じ部材にもう1本の在庫として持つ
+   2) 0円在庫の出荷時に「売価」を記録し、見積へ反映できるようにする
+   3) 現場が迷わないための「使い方ガイド」をアプリ内に置く
+   ===================================================================== */
+(function(){
+'use strict';
+
+/* ---------------- 0. データ領域 ---------------- */
+if(!S.zeroStock||typeof S.zeroStock!=='object')S.zeroStock={};
+if(!Array.isArray(S.moves))S.moves=[];
+
+function zGet(code){
+  var z=S.zeroStock[code];
+  return {q:z?(Number(z.q)||0):0,price:z?(Number(z.price)||0):0};
+}
+function zPut(code,q,price){
+  var z=S.zeroStock[code]||{q:0,price:0};
+  if(q!=null)z.q=Number(q)||0;
+  if(price!=null&&Number(price)>0)z.price=Number(price)||0;
+  if(z.q===0&&!(z.price>0))delete S.zeroStock[code];
+  else S.zeroStock[code]=z;
+}
+function partOf(code){return S.parts.find(function(p){return p.code===code;});}
+
+/* ---------------- 1. スタイル済みの共通部品 ---------------- */
+var BUCKET_HTML=
+ '<label class="fl">在庫区分<span class="fl-mini">　同じ部材に2つの在庫があります</span></label>'+
+ '<div class="seg seg-sm" id="{P}Bucket">'+
+   '<button type="button" data-bucket="normal" class="on">通常在庫（原価あり）</button>'+
+   '<button type="button" data-bucket="zero">0円在庫（工事残材）</button>'+
+ '</div>'+
+ '<div class="zrow2" id="{P}ZFields" hidden>'+
+   '<div><label class="fl">売価単価（円）</label><input id="{P}ZPrice" type="number" min="0" step="any" class="inp" style="width:100%" placeholder="0"></div>'+
+   '<div><label class="fl">出荷金額（自動）</label><div class="zamt" id="{P}ZAmt">—</div></div>'+
+ '</div>'+
+ '<div class="zhint" id="{P}ZHint"></div>';
+
+function injectBucket(prefix){
+  var qty=document.getElementById(prefix+'Qty');
+  if(!qty)return;
+  var grid=qty.closest('.fgrid');
+  if(!grid||document.getElementById(prefix+'BucketRow'))return;
+  var row=document.createElement('div');
+  row.className='fspan2';
+  row.id=prefix+'BucketRow';
+  row.innerHTML=BUCKET_HTML.split('{P}').join(prefix);
+  grid.insertBefore(row,grid.firstChild);
+
+  row.addEventListener('click',function(e){
+    var b=e.target.closest('button[data-bucket]');
+    if(!b)return;
+    e.preventDefault();
+    row.querySelectorAll('button[data-bucket]').forEach(function(x){x.classList.toggle('on',x===b);});
+    syncBucket(prefix);
+  });
+  var zp=document.getElementById(prefix+'ZPrice');
+  if(zp)zp.addEventListener('input',function(){updateAmt(prefix);});
+  var q=document.getElementById(prefix+'Qty');
+  if(q)q.addEventListener('input',function(){updateAmt(prefix);});
+}
+
+function bucketOf(prefix){
+  var b=document.querySelector('#'+prefix+'Bucket button.on');
+  return b?b.dataset.bucket:'normal';
+}
+function typeOf(segId){
+  var b=document.querySelector('#'+segId+' button.on');
+  return b?b.dataset.type:'out';
+}
+function codeOf(prefix){
+  if(prefix==='mm'){
+    var el=document.querySelector('#mmPart .mono');
+    if(el&&el.textContent.trim())return el.textContent.trim();
+    var m=document.getElementById('mMove');
+    return (m&&m.dataset.code)||null;
+  }
+  return (typeof fCode!=='undefined'&&fCode)?fCode:null;
+}
+function numOf(id){var e=document.getElementById(id);return e?Number(e.value)||0:0;}
+function strOf(id){var e=document.getElementById(id);return e?String(e.value||'').trim():'';}
+
+function syncBucket(prefix){
+  var zero=bucketOf(prefix)==='zero';
+  var fields=document.getElementById(prefix+'ZFields');
+  if(fields)fields.hidden=!zero;
+  var cost=document.getElementById(prefix+'Cost');
+  var lblCost=document.getElementById(prefix==='f'?'lblCost':'mmLblCost');
+  var hint=document.getElementById(prefix+'ZHint');
+  var code=codeOf(prefix);
+  var p=code?partOf(code):null;
+  var z=code?zGet(code):{q:0,price:0};
+
+  if(zero){
+    if(cost){cost.dataset.prev=cost.value;cost.value=0;cost.disabled=true;}
+    if(lblCost)lblCost.textContent='払出原価（0円固定）';
+    var zp=document.getElementById(prefix+'ZPrice');
+    if(zp&&!zp.value){zp.value=(z.price||(p&&Number(p.price)||0)||'');}
+    if(hint){
+      hint.innerHTML=p?
+        ('この部材の0円在庫は <b>'+fmtN(z.q)+(p.unit||'')+'</b>。原価0で払い出し、売価×数量を見積に反映します。'+
+         (z.q<=0?'　<b>※0円在庫がありません。先に「入庫」で0円在庫として受け入れてください。</b>':'')):
+        '部品を先に選択してください。';
+    }
+  }else{
+    if(cost){cost.disabled=false;if(cost.dataset.prev!=null&&cost.dataset.prev!=='')cost.value=cost.dataset.prev;}
+    if(lblCost)lblCost.textContent=(typeOf(prefix==='f'?'fSeg':'mmSeg')==='in')?'入庫単価（円）':'払出単価（円）';
+    if(hint){
+      hint.innerHTML='通常在庫：仕入れた原価で管理します。工事でまとめ買いした残材は <b>0円在庫</b> に切り替えてください。';
+    }
+  }
+  updateAmt(prefix);
+}
+function updateAmt(prefix){
+  var el=document.getElementById(prefix+'ZAmt');
+  if(!el)return;
+  var q=numOf(prefix+'Qty');
+  var pr=numOf(prefix+'ZPrice');
+  el.textContent=(bucketOf(prefix)==='zero')?fmtY(q*pr):'—';
+}
+
+/* ---------------- 2. 記録（0円在庫のときだけ横取り） ---------------- */
+function recordZero(prefix,segId,costLblId){
+  var type=typeOf(segId);
+  if(type!=='in'&&type!=='out'&&type!=='adj'){
+    toast('0円在庫は「入庫・出庫・棚卸調整」で使います','err');
+    return true;
+  }
+  var code=codeOf(prefix);
+  var p=code?partOf(code):null;
+  if(!p){toast('部品を選択してください','err');return true;}
+  var q=Math.round(numOf(prefix+'Qty'));
+  if(!q||q<0||(type!=='adj'&&q===0)){toast('数量を入力してください','err');return true;}
+  var price=Math.round(numOf(prefix+'ZPrice'));
+  var z=zGet(code);
+
+  if(type==='out'){
+    if(z.q<q){toast('0円在庫が不足しています（現在 '+fmtN(z.q)+(p.unit||'')+'）','err');return true;}
+    z.q-=q;
+    if(price<=0){toast('売価を入力してください（見積に反映されません）','err');return true;}
+  }else if(type==='in'){
+    z.q+=q;
+  }else{
+    z.q=q;
+  }
+  zPut(code,z.q,price);
+
+  var mv={
+    id:uid(),
+    date:strOf(prefix+'Date')||todayStr(),
+    type:type,
+    code:p.code,name:p.name,qty:q,unit:p.unit||'',
+    cost:0,price:price,amount:(type==='adj'?0:price*q),bucket:'zero',
+    person:strOf(prefix+'Person'),
+    job:strOf(prefix+'Job'),
+    memo:strOf(prefix+'Memo'),
+    createdAt:new Date().toISOString()
+  };
+  if(type==='adj')mv.prevStock=z.q;
+  S.moves.push(mv);
+  save();
+
+  var qEl=document.getElementById(prefix+'Qty');if(qEl)qEl.value='';
+  toast((type==='out'?'0円在庫から出庫しました（売価 '+fmtY(price*q)+'）':
+        type==='in'?'0円在庫として受け入れました':
+        '0円在庫を棚卸調整しました'));
+  if(curView==='stock')renderStock();
+  if(curView==='history')renderHistory();
+  if(curView==='quote')renderQuote();
+  if(curView==='dash')renderDash();
+  syncBucket(prefix);
+  return true;
+}
+
+/* ドキュメントのキャプチャ段階で先に拾う（元のハンドラに渡さない） */
+document.addEventListener('click',function(e){
+  var b=e.target.closest?e.target.closest('#btnRecord,#btnSaveMove'):null;
+  if(!b)return;
+  var prefix=(b.id==='btnRecord')?'f':'mm';
+  if(bucketOf(prefix)!=='zero')return;
+  e.preventDefault();
+  e.stopPropagation();
+  if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+  recordZero(prefix,prefix==='f'?'fSeg':'mmSeg',prefix==='f'?'lblCost':'mmLblCost');
+},true);
+
+/* 部品一覧からモーダルを開く時のコードを控える */
+document.addEventListener('click',function(e){
+  var b=e.target.closest?e.target.closest('[data-act="move"]'):null;
+  if(b&&b.dataset&&b.dataset.code){
+    var m=document.getElementById('mMove');
+    if(m)m.dataset.code=b.dataset.code;
+  }
+},true);
+
+/* ---------------- 3. 部品一覧に「残材」を併記 ---------------- */
+function decorateParts(){
+  var body=document.getElementById('pTbody');
+  if(!body)return;
+  Array.prototype.forEach.call(body.querySelectorAll('tr'),function(tr){
+    var codeTd=tr.querySelector('td.mono');
+    if(!codeTd)return;
+    var code=codeTd.textContent.trim();
+    if(!code||tr.querySelector('.zchip'))return;
+    var p=partOf(code);
+    if(!p)return;
+    var z=zGet(code);
+    if(!z.q&&!z.price)return;
+    var tds=tr.querySelectorAll('td');
+    var stockTd=tds[6];
+    if(!stockTd)return;
+    var chip=document.createElement('div');
+    chip.className='zchip'+(z.q>0?'':' off');
+    chip.textContent='残材 '+fmtN(z.q)+(p.unit||'')+(z.price?' @'+fmtY(z.price):'');
+    chip.title='0円在庫（原価0・売価 '+(z.price?fmtY(z.price):'未設定')+'）';
+    stockTd.appendChild(chip);
+  });
+}
+var _renderParts=renderParts;
+renderParts=function(){_renderParts();decorateParts();};
+
+/* ---------------- 4. 見積ビュー ---------------- */
+var QT_SECTION=
+ '<section class="view" id="view-quote">'+
+  '<div class="print-title">出荷と売価<span class="print-date"></span></div>'+
+  '<div class="qt-kpi">'+
+    '<div><div class="l">出荷売価 合計</div><div class="v blue" id="qtSale">—</div><div class="s">見積に載せる金額</div></div>'+
+    '<div><div class="l">出荷原価 合計</div><div class="v" id="qtCost">—</div><div class="s">仕入れた原価</div></div>'+
+    '<div><div class="l">粗利</div><div class="v green" id="qtGp">—</div><div class="s" id="qtGpr">—</div></div>'+
+    '<div><div class="l">残材活用額</div><div class="v blue" id="qtZero">—</div><div class="s">原価0で出した売価</div></div>'+
+    '<div><div class="l">件数</div><div class="v" id="qtCnt">—</div><div class="s">出庫の件数</div></div>'+
+  '</div>'+
+  '<div class="card" style="margin-bottom:14px"><div class="card-b">'+
+    '<div class="toolbar no-print" style="margin-bottom:10px">'+
+      '<input type="date" id="qtFrom" class="inp"><span class="range-sep">〜</span><input type="date" id="qtTo" class="inp">'+
+      '<input id="qtJob" class="inp" list="jobList" placeholder="案件名で絞る（空欄＝全件）" style="min-width:220px;flex:1">'+
+      '<select id="qtBucket" class="inp"><option value="">全区分</option><option value="normal">通常在庫</option><option value="zero">0円在庫</option></select>'+
+      '<button class="btn btn-ghost" id="btnQtCsv">CSV出力（見積貼付用）</button>'+
+    '</div>'+
+    '<div class="twrap"><table><thead><tr>'+
+      '<th>日付</th><th>案件</th><th>部品</th><th class="num">数量</th>'+
+      '<th class="num">原価単価</th><th class="num">原価金額</th>'+
+      '<th class="num">売価単価</th><th class="num">売価金額</th><th class="num">粗利</th>'+
+    '</tr></thead><tbody id="qtBody"></tbody>'+
+    '<tfoot><tr><th colspan="5" style="text-align:right">合計</th><th class="num" id="qtFc">—</th><th></th><th class="num" id="qtFs">—</th><th class="num" id="qtFg">—</th></tr></tfoot>'+
+    '</table></div>'+
+    '<p class="psub" style="margin-top:8px;color:var(--ink3)">0円在庫からの出荷は原価0で計上し、売価だけを見積に反映します。売価は出荷時点の単価で記録されるため、あとで定価を変えても過去の見積金額は動きません。</p>'+
+  '</div></div>'+
+ '</section>';
+
+function priceOf(m){
+  if(m.price!=null&&m.price!=='')return Number(m.price)||0;
+  var p=partOf(m.code);
+  return p?(Number(p.price)||0):0;
+}
+function qtList(){
+  var f=document.getElementById('qtFrom'),t=document.getElementById('qtTo');
+  var job=(document.getElementById('qtJob')||{}).value||'';
+  var bk=(document.getElementById('qtBucket')||{}).value||'';
+  job=job.trim().toLowerCase();
+  return S.moves.filter(function(m){
+    if(m.type!=='out')return false;
+    if(f&&f.value&&String(m.date||'')<f.value)return false;
+    if(t&&t.value&&String(m.date||'')>t.value)return false;
+    if(job&&String(m.job||'').toLowerCase().indexOf(job)<0)return false;
+    if(bk&&(m.bucket||'normal')!==bk)return false;
+    return true;
+  }).sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''))||String(a.createdAt||'').localeCompare(String(b.createdAt||''));});
+}
+function renderQuote(){
+  if(!document.getElementById('view-quote'))return;
+  var list=qtList();
+  var sale=0,cost=0,zsale=0;
+  var rows=list.map(function(m){
+    var c=Number(m.cost)||0,pr=priceOf(m),q=Number(m.qty)||0;
+    sale+=pr*q;cost+=c*q;if((m.bucket||'normal')==='zero')zsale+=pr*q;
+    return {m:m,c:c,p:pr,q:q};
+  });
+  var gp=sale-cost;
+  document.getElementById('qtSale').textContent=fmtY(sale);
+  document.getElementById('qtCost').textContent=fmtY(cost);
+  document.getElementById('qtGp').textContent=fmtY(gp);
+  document.getElementById('qtGpr').textContent=sale?('粗利率 '+Math.round(gp/sale*100)+'%'):'—';
+  document.getElementById('qtZero').textContent=fmtY(zsale);
+  document.getElementById('qtCnt').textContent=fmtN(list.length)+' 件';
+  document.getElementById('qtFc').textContent=fmtY(cost);
+  document.getElementById('qtFs').textContent=fmtY(sale);
+  document.getElementById('qtFg').textContent=fmtY(gp);
+  document.getElementById('qtBody').innerHTML=rows.length?rows.map(function(r){
+    var isZ=(r.m.bucket||'normal')==='zero';
+    return '<tr>'+
+      '<td class="mono">'+dateLabel(r.m.date)+'</td>'+
+      '<td>'+esc(r.m.job||'—')+'</td>'+
+      '<td><div class="pname">'+esc(r.m.name)+'</div><div class="psub mono">'+esc(r.m.code)+
+        ' <span class="qt-tag'+(isZ?'':' n')+'">'+(isZ?'0円在庫':'通常')+'</span></div></td>'+
+      '<td class="num strong">'+fmtN(r.q)+esc(r.m.unit||'')+'</td>'+
+      '<td class="num">'+fmtY(r.c)+'</td>'+
+      '<td class="num">'+fmtY(r.c*r.q)+'</td>'+
+      '<td class="num">'+fmtY(r.p)+'</td>'+
+      '<td class="num strong">'+fmtY(r.p*r.q)+'</td>'+
+      '<td class="num">'+fmtY((r.p-r.c)*r.q)+'</td>'+
+    '</tr>';
+  }).join(''):'<tr><td colspan="9"><div class="empty">該当する出庫がありません</div></td></tr>';
+}
+function qtCsv(){
+  var list=qtList();
+  var head=['日付','案件','部品コード','部品名','数量','単位','在庫区分','原価単価','原価金額','売価単価','売価金額','粗利'];
+  var rows=list.map(function(m){
+    var c=Number(m.cost)||0,pr=priceOf(m),q=Number(m.qty)||0;
+    return [m.date,m.job||'',m.code,m.name,q,m.unit||'',((m.bucket||'normal')==='zero'?'0円在庫':'通常'),c,c*q,pr,pr*q,(pr-c)*q];
+  });
+  var tot=rows.reduce(function(a,r){return [a[0]+r[7],a[1]+r[8],a[2]+r[9],a[3]+r[10],a[4]+r[11]];},[0,0,0,0,0]);
+  rows.push(['','','','','','','','合計',tot[1],'',tot[2],tot[3]]);
+  download('出荷売価_'+todayStr()+'.csv',toCSV([head].concat(rows)),'text/csv;charset=utf-8');
+}
+
+/* ---------------- 5. ガイド ---------------- */
+var GD_SECTION=
+ '<section class="view" id="view-guide"><div class="gd-wrap">'+
+  '<div class="gd-hero">'+
+    '<span class="pill">現場用・迷わないための1枚</span>'+
+    '<h2>この部材、どっちの在庫から出しますか？</h2>'+
+    '<p>判断は「その原価を、もう経費として落としているか」の1点だけです。落としていれば<b>0円在庫</b>、落としていなければ<b>通常在庫</b>。ここさえ間違えなければ、原価も見積もズレません。</p>'+
+  '</div>'+
+  '<div class="gd-stat" id="gdStat"></div>'+
+  '<div class="gd-steps">'+
+    '<div class="gd-step"><span class="n">1</span><h4>その部材はどこから来た？</h4><p>取引先から通常仕入／工事でまとめ買い／緊急でホームセンター。入口で原価の行き先が変わります。</p></div>'+
+    '<div class="gd-step"><span class="n">2</span><h4>その原価はもう経費になった？</h4><p>工事原価や消耗品費として一度落ちた残材は、<b>0円在庫</b>。まだ落ちていない仕入在庫は<b>通常在庫</b>。</p><div class="ans">→ ここが唯一の分岐点</div></div>'+
+    '<div class="gd-step"><span class="n">3</span><h4>出すときは在庫区分を選ぶ</h4><p>入出庫画面の「在庫区分」で 通常／0円 を選ぶ。0円を選ぶと原価は自動で0円になります。</p></div>'+
+    '<div class="gd-step"><span class="n">4</span><h4>見積に載せる金額は？</h4><p>通常は定価、0円在庫は<input class="inp" style="width:0;height:0;padding:0;border:0" tabindex="-1">売価（使用時点の適正売価）。「出荷と売価」画面から案件ごとにCSVで出せます。</p></div>'+
+  '</div>'+
+
+  '<div class="gd-card"><h3>これだけ見れば決まります</h3><p class="lead">現場で迷ったら、この表の「状況」を探してください。</p>'+
+   '<table class="gd-table"><thead><tr><th>状況</th><th>在庫区分</th><th>原価</th><th>見積に載せる金額</th><th>記録のしかた</th></tr></thead><tbody>'+
+    '<tr><td class="k">取引先から買って、倉庫に置いた</td><td><span class="gd-b ok">通常在庫</span></td><td>取得原価</td><td>定価（掛け率）</td><td>「入庫」で在庫区分＝通常</td></tr>'+
+    '<tr><td class="k">工事でまとめ買いし、その工事で使った</td><td><span class="gd-b ok">通常在庫</span></td><td>取得原価</td><td>定価（掛け率）</td><td>「出庫」で案件名を入れる</td></tr>'+
+    '<tr><td class="k">工事で買ったが、余って倉庫に戻した</td><td><span class="gd-b z">0円在庫</span></td><td>0円（原価は工事側で処理済み）</td><td>売価（適正売価）</td><td>「入庫」で在庫区分＝0円</td></tr>'+
+    '<tr><td class="k">その残材を、別の修理・工事で使う</td><td><span class="gd-b z">0円在庫</span></td><td>0円</td><td>売価（適正売価）</td><td>「出庫」で在庫区分＝0円＋売価入力</td></tr>'+
+    '<tr><td class="k">緊急でホームセンターで買った（ビス等）</td><td><span class="gd-b ng">在庫に載せない</span></td><td>買った時点で経費</td><td>実費＋掛け率</td><td>「現場受取」で案件に直課</td></tr>'+
+    '<tr><td class="k">塩ビ管・SDカバーなど、残りそうな資材</td><td><span class="gd-b z">0円在庫</span></td><td>0円</td><td>売価（適正売価）</td><td>金額が大きいものだけ0円在庫へ</td></tr>'+
+   '</tbody></table></div>'+
+
+  '<div class="gd-card"><h3>3つの入口と、原価の行き先</h3><p class="lead">同じ部材でも、入口が違えば単価も原価の行き先も違います。入口を選ぶところから始めてください。</p>'+
+   '<table class="gd-table"><thead><tr><th>入口</th><th>買う人</th><th>原価の行き先</th><th>アプリでの記録</th></tr></thead><tbody>'+
+    '<tr><td class="k">通常仕入（取引先・掛）</td><td>購買担当</td><td>在庫（材料貯蔵品）。使った時点で原価</td><td>入庫（通常在庫）</td></tr>'+
+    '<tr><td class="k">工事一括仕入</td><td>現場・購買</td><td>その工事の材料費（未成工事支出金）</td><td>出庫（通常在庫・案件名入り）</td></tr>'+
+    '<tr><td class="k">緊急スポット購入</td><td>現場</td><td>買った時点で経費、または工事へ直課</td><td>現場受取（在庫に載せない）</td></tr>'+
+    '<tr><td class="k">工事の残材戻し</td><td>現場</td><td>工事原価から外して、0円在庫へ</td><td>入庫（0円在庫）</td></tr>'+
+   '</tbody></table></div>'+
+
+  '<div class="gd-card"><h3>よくある迷い</h3>'+
+   '<div class="gd-qa"><div class="q">工事で買った部材が余った。捨てるのもったいない。</div><p class="a">捨てずに「入庫 → 0円在庫」で受け入れてください。数量と売価だけ持ち、原価は0。次に使ったときに売価だけが見積に乗るので、工事の採算を壊さずに資材を回せます。</p></div>'+
+   '<div class="gd-qa"><div class="q">0円在庫なのに、売価を入れるのはなぜ？</div><p class="a">原価はすでに前の工事で処理済みなので、原価を二重に立ててはいけません。ただし客先に請求する金額は発生するので、売価だけを記録します。原価0・売価ありが正しい状態です。</p></div>'+
+   '<div class="gd-qa"><div class="q">同じ部材で、通常在庫と0円在庫が両方ある。どちらから出す？</div><p class="a">先に0円在庫から出してください。同じ部材を2つ持っている状態は、残材を抱えている状態です。残材がなくなってから通常在庫を使います。</p></div>'+
+   '<div class="gd-qa"><div class="q">ビスやテープも0円在庫に入れる？</div><p class="a">入れません。金額が小さすぎて管理が続きません。ビス・テープ・結束バンドは「現場受取」で案件に直課し、在庫に載せないのが正解です。判断の目安は1個あたり数千円以上かどうか。</p></div>'+
+   '<div class="gd-qa"><div class="q">0円在庫の売価は、いつ決める？</div><p class="a">出荷するときです。その時点の適正売価を入れれば、あとで定価が変わっても過去の見積金額は動きません。迷ったら定価をそのまま入れてください。</p></div>'+
+   '<div class="gd-qa"><div class="q">棚卸のとき、0円在庫はどう数える？</div><p class="a">通常在庫と同じく実地数量を数えます。棚卸画面で在庫区分＝0円を選ぶと、0円在庫だけを対象にできます。金額は0なので、帳簿価額は増えません。</p></div>'+
+  '</div>'+
+
+  '<div class="gd-card"><h3>これはやらないでください</h3><p class="lead">トラブルの9割は、この3つから起きます。</p>'+
+   '<div class="gd-ng">'+
+    '<div><b>0円で入れた在庫を、時価で払い出す</b><span>受入と払出で単価ルールが違うと、原価が二重に立ちます。0円で入れたら0円で出す。売価は別欄です。</span></div>'+
+    '<div><b>残材をそのまま現場に置きっぱなしにする</b><span>数量が合わなくなり、次の現場で「あるのに買う」が起きます。工事が終わったら必ず戻してください。</span></div>'+
+    '<div><b>ビス・テープまで全部品マスタに載せる</b><span>更新が止まり、在庫精度全体が信用されなくなります。小さいものは管理しない、と決めるのが正解です。</span></div>'+
+   '</div></div>'+
+
+  '<div class="gd-card"><h3>1日の流れ</h3>'+
+   '<table class="gd-table"><thead><tr><th>タイミング</th><th>やること</th><th>画面</th></tr></thead><tbody>'+
+    '<tr><td class="k">朝・出発前</td><td>車両の在庫を確認し、足りない部材を積み込む</td><td>入出庫 → 移動</td></tr>'+
+    '<tr><td class="k">現場で使った直後</td><td>使った部材を在庫区分つきで出庫。案件名を必ず入れる</td><td>入出庫 → 出庫</td></tr>'+
+    '<tr><td class="k">工事が終わった時</td><td>残った部材を0円在庫で戻す。売価も入れる</td><td>入出庫 → 入庫（0円）</td></tr>'+
+    '<tr><td class="k">見積を作るとき</td><td>案件名で絞って売価をCSV出力し、見積に貼る</td><td>出荷と売価</td></tr>'+
+    '<tr><td class="k">月末</td><td>車両と倉庫を棚卸。差異はその場で調整</td><td>棚卸</td></tr>'+
+   '</tbody></table></div>'+
+ '</div></section>';
+
+function renderGuide(){
+  if(!document.getElementById('view-guide'))return;
+  var el=document.getElementById('gdStat');
+  if(!el)return;
+  var codes=Object.keys(S.zeroStock||{}).filter(function(c){return zGet(c).q>0;});
+  var qty=codes.reduce(function(a,c){return a+zGet(c).q;},0);
+  var val=codes.reduce(function(a,c){return a+zGet(c).q*zGet(c).price;},0);
+  el.innerHTML=
+    '<div><div class="l">0円在庫の品目</div><div class="v">'+fmtN(codes.length)+'<span style="font-size:12px;color:#8AA4BC"> 点</span></div><div class="s">残材として抱えている数</div></div>'+
+    '<div><div class="l">0円在庫の数量</div><div class="v">'+fmtN(qty)+'</div><div class="s">合計（単位バラバラ）</div></div>'+
+    '<div><div class="l">売価ベースの金額</div><div class="v">'+fmtY(val)+'</div><div class="s">見積に載せられる潜在額</div></div>'+
+    '<div><div class="l">今月の残材活用額</div><div class="v">'+fmtY(zeroUsedThisMonth())+'</div><div class="s">原価0で出した売価</div></div>';
+}
+function zeroUsedThisMonth(){
+  var m=todayStr().slice(0,7);
+  return S.moves.filter(function(x){return x.type==='out'&&(x.bucket==='zero')&&String(x.date||'').slice(0,7)===m;})
+    .reduce(function(a,x){return a+(Number(x.price)||0)*(Number(x.qty)||0);},0);
+}
+
+/* ---------------- 6. 画面とナビの組み込み ---------------- */
+if(typeof TITLES==='object'&&TITLES){
+  TITLES.guide=['使い方ガイド','迷ったときの判断フローと在庫区分のルール'];
+  TITLES.quote=['出荷と売価','案件ごとの売価・原価・粗利を集計'];
+}
+var _show=show;
+show=function(v){
+  _show(v);
+  if(v==='guide')renderGuide();
+  if(v==='quote')renderQuote();
+};
+
+(function init(){
+  var anchor=document.getElementById('view-take')||document.getElementById('view-history');
+  if(anchor&&!document.getElementById('view-guide')){
+    anchor.insertAdjacentHTML('afterend',GD_SECTION+QT_SECTION);
+  }
+  var icoG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>';
+  var icoQ='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>';
+  document.querySelectorAll('button[data-view="settings"]').forEach(function(nb){
+    if(nb.parentElement&&!nb.parentElement.querySelector('button[data-view="guide"]')){
+      nb.insertAdjacentHTML('beforebegin','<button class="nav-item" data-view="quote">'+icoQ+'出荷と売価</button><button data-view="guide">'+icoG+'使い方</button>');
+    }
+  });
+  document.querySelectorAll('button[data-view="guide"],button[data-view="quote"]').forEach(function(b){
+    if(b.dataset.bound)return;
+    b.dataset.bound='1';
+    b.addEventListener('click',function(){show(b.dataset.view);});
+  });
+  document.querySelectorAll('.nav-item').forEach(function(ref){
+    var par=ref.parentElement;if(!par)return;
+    par.querySelectorAll('button[data-view]:not(.nav-item)').forEach(function(b){b.classList.add('nav-item');});
+  });
+  injectBucket('f');
+  injectBucket('mm');
+  var fs=document.getElementById('fSeg');
+  if(fs)fs.addEventListener('click',function(){setTimeout(function(){syncBucket('f');},0);});
+  var ms=document.getElementById('mmSeg');
+  if(ms)ms.addEventListener('click',function(){setTimeout(function(){syncBucket('mm');},0);});
+  var fo=document.getElementById('fPart');
+  if(fo)fo.addEventListener('change',function(){setTimeout(function(){syncBucket('f');},10);});
+  var qf=document.getElementById('qtFrom'),qt=document.getElementById('qtTo');
+  if(qf&&!qf.value){var d=new Date();d.setDate(1);qf.value=d.toISOString().slice(0,10);}
+  if(qt&&!qt.value)qt.value=todayStr();
+  if(qf)qf.addEventListener('change',renderQuote);
+  if(qt)qt.addEventListener('change',renderQuote);
+  var qj=document.getElementById('qtJob');if(qj)qj.addEventListener('input',renderQuote);
+  var qb=document.getElementById('qtBucket');if(qb)qb.addEventListener('change',renderQuote);
+  var bc=document.getElementById('btnQtCsv');if(bc)bc.addEventListener('click',qtCsv);
+  syncBucket('f');
+})();
+
+/* 公開（他から触れるように） */
+window.zGet=zGet;window.zPut=zPut;window.renderQuote=renderQuote;window.renderGuide=renderGuide;
+})();
+</script>
+
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
 </body>
 </html>
