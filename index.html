@@ -591,7 +591,7 @@ window.addEventListener('unhandledrejection',function(e){esh('未処理の例外
                 <li>Microsoft 365同期：設定の「Microsoft 365 クラウド同期」でサインインすると、SharePointリスト経由で全端末が同じ在庫を共有できます（社外からの確認も可能。写真も同期されます）。</li>
                 <li>毎月の棚卸時にバックアップ（JSON）やCSVを出力して保管することを推奨します。</li>
               </ul>
-              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.22（システム列の排除）（送信失敗の原因表示）｜札幌中野冷機株式会社</p>
+              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.23（部品名→Title変換）（送信失敗の原因表示）｜札幌中野冷機株式会社</p>
             </div>
           </div>
         </div>
@@ -3186,8 +3186,10 @@ async function cLoadCols(listId){
     const r=await gfetch('/sites/'+C.cfg.siteId+'/lists/'+listId+'/columns?top=999');
     if(!r.ok){C.lastErr='列一覧の取得に失敗しました（HTTP '+r.status+'）';return;}
     const j=await r.json();const m={};const t={};
-    const _sys={linktitle:1,complianceassetid:1,contenttypeid:1,attachments:1,_uiversionstring:1,_commentcount:1,_likecount:1,_copysource:1,edit:1,itemchildcount:1};
-    (j.value||[]).forEach(c=>{if(c&&c.name){const nk=normKey(c.name);const dk=c.displayName?normKey(c.displayName):'';if(_sys[nk]||c.readOnly)return;if(dk&&_sys[dk])return;m[nk]=c.name;if(dk)m[dk]=c.name;t[c.name]=(c.number!==undefined)?'number':'text';}});
+    const _sys={complianceassetid:1,contenttypeid:1,attachments:1,_uiversionstring:1,_commentcount:1,_likecount:1,_copysource:1,edit:1,itemchildcount:1};
+    (j.value||[]).forEach(c=>{if(c&&c.name){const nk=normKey(c.name);const dk=c.displayName?normKey(c.displayName):'';
+      if(nk==='linktitle'){if(dk)m[dk]='Title';m['title']='Title';t['Title']='text';return;}
+      if(_sys[nk]||c.readOnly)return;if(dk&&_sys[dk])return;m[nk]=c.name;if(dk)m[dk]=c.name;t[c.name]=(c.number!==undefined)?'number':'text';}});
     C.colMaps[listId]=m;C.colTypes[listId]=t;
   }catch(e){}
 }
@@ -3756,7 +3758,7 @@ function cSignOut(){
 })();
 setInterval(()=>{if(document.visibilityState==='visible'&&C.ready&&!C.syncing)cSync(false).catch(()=>{});},60000);
 /* ================= 自動更新チェック ================= */
-const APP_VER='3.22';let updChk=false;
+const APP_VER='3.23';let updChk=false;
 function cmpV(a,b){const pa=String(a).split('.').map(Number),pb=String(b).split('.').map(Number);
   for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i]||0,y=pb[i]||0;if(x!==y)return x-y;}return 0;}
 async function checkUpdate(){
