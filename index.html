@@ -3347,7 +3347,7 @@ async function cPullParts(full,out){
   const remote={};
   while(next){
     const r=await gfetch(next);
-    if(!r.ok)throw new Error('部品リストの読み込みに失敗しました（HTTP '+r.status+'）');
+    if(!r.ok){let d='';try{d=(await r.text()).slice(0,200);}catch(_e){}throw new Error('部品リストの読み込みに失敗しました（HTTP '+r.status+'）'+d);}
     const j=await r.json();
     (j.value||[]).forEach(it=>{
       const f=it.fields||{};const code=String(f[fkey(C.cfg.listP,'code')]||'');
@@ -3397,7 +3397,7 @@ async function cPullMoves(full,out){
   }
   while(next){
     const r=await gfetch(next);
-    if(!r.ok)throw new Error('履歴リストの読み込みに失敗しました（HTTP '+r.status+'）');
+    if(!r.ok){let d='';try{d=(await r.text()).slice(0,200);}catch(_e){}throw new Error('履歴リストの読み込みに失敗しました（HTTP '+r.status+'）'+d);}
     const j=await r.json();
     (j.value||[]).forEach(it=>{
       const f=it.fields||{};const mid=String(f[fkey(C.cfg.listM,'mid')]||'');
