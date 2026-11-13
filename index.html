@@ -589,7 +589,7 @@ th.tcol-img{width:54px}
                 <li>Microsoft 365同期：設定の「Microsoft 365 クラウド同期」でサインインすると、SharePointリスト経由で全端末が同じ在庫を共有できます（社外からの確認も可能。写真も同期されます）。</li>
                 <li>毎月の棚卸時にバックアップ（JSON）やCSVを出力して保管することを推奨します。</li>
               </ul>
-              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.5（リスト名互換修正）｜札幌中野冷機株式会社</p>
+              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.6（同期の表示改善）｜札幌中野冷機株式会社</p>
             </div>
           </div>
         </div>
@@ -3584,7 +3584,7 @@ async function cFlush(){
   catch(e){C.lastErr=String((e&&e.message)||e);}
   finally{C.syncing=false;updateCloudUI();}
 }
-async function cSync(full){
+async function cSync(full,silent){
   if(!C.ready||C.syncing)return;
   C.syncing=true;C.lastErr='';updateCloudUI();
   try{
@@ -3609,8 +3609,9 @@ async function cSync(full){
       if(C.cfg.listZ&&S.zeroStock&&typeof S.zeroStock==='object')Object.keys(S.zeroStock).forEach(code=>{C.dirtyZ.add(code);});}
     C.cfg.lastPull=new Date().toISOString();csaveCfg();
     await cFlushCore();
+    if(!silent){const pn=C.dirtyP.size+C.dirtyM.size+C.delP.size+C.delM.size+C.dirtyV.size+C.dirtyZ.size+(C.dirtyMeta?1:0);toast(pn?('同期完了｜未送信 '+pn+'件（あと一度押してください）'):'同期完了｜未送信 0件');}
     try{await cSyncPhotos(!!full);}catch(e){}
-  }catch(e){C.lastErr=String((e&&e.message)||e);updateCloudUI();}
+  }catch(e){C.lastErr=String((e&&e.message)||e);updateCloudUI();if(!silent)toast('同期エラー：'+C.lastErr,'err');}
   finally{C.syncing=false;updateCloudUI();}
 }
 /* --- v3.4 自動同期 --- */
@@ -3623,7 +3624,7 @@ async function autoTick(){
   const dlg=document.getElementById('mConfirm');
   if(dlg&&dlg.classList.contains('show'))return;
   autoTickBusy=true;
-  try{await cSync(false);}catch(e){}
+  try{await cSync(false,true);}catch(e){}
   autoTickBusy=false;
 }
 function scheduleAutoPush(){
@@ -3658,7 +3659,7 @@ function updateCloudUI(){
   const vo=document.getElementById('chkViewOnly');
   if(vo)vo.checked=!!C.cfg.viewOnly;
   const by=document.getElementById('btnCloudSync');
-  if(by)by.disabled=!C.ready;
+  if(by){by.disabled=!C.ready||!!C.syncing;by.textContent=C.syncing?'同期中…':'今すぐ同期';}
   const so=document.getElementById('btnCloudSignOut');
   if(so)so.disabled=!(C.account||C.pca);
 }
@@ -3722,7 +3723,7 @@ function cSignOut(){
 })();
 setInterval(()=>{if(document.visibilityState==='visible'&&C.ready&&!C.syncing)cSync(false).catch(()=>{});},60000);
 /* ================= 自動更新チェック ================= */
-const APP_VER='3.5.1';let updChk=false;
+const APP_VER='3.6';let updChk=false;
 function cmpV(a,b){const pa=String(a).split('.').map(Number),pb=String(b).split('.').map(Number);
   for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i]||0,y=pb[i]||0;if(x!==y)return x-y;}return 0;}
 async function checkUpdate(){
