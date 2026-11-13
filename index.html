@@ -300,7 +300,9 @@ th.tcol-img{width:54px}
 }
 </style>
 </head>
-<body>
+<body><script>(function(){function esh(m){try{var b=document.getElementById('errTrap');if(!b){b=document.createElement('div');b.id='errTrap';b.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#b91c1c;color:#fff;font:12px/1.5 sans-serif;padding:8px 12px;white-space:pre-wrap;max-height:35%;overflow:auto';(document.body||document.documentElement).appendChild(b);}b.textContent='エラー検出（この文字をそのまま送ってください）：'+m;}catch(e){}}
+window.addEventListener('error',function(e){esh((e.message||'')+' @'+String(e.filename||'').split('/').pop()+':'+e.lineno);});
+window.addEventListener('unhandledrejection',function(e){esh('未処理の例外：'+((e.reason&&e.reason.message)||e.reason));});})();</script>
 <div class="app">
   <aside class="sidebar">
     <div class="brand">
@@ -589,7 +591,7 @@ th.tcol-img{width:54px}
                 <li>Microsoft 365同期：設定の「Microsoft 365 クラウド同期」でサインインすると、SharePointリスト経由で全端末が同じ在庫を共有できます（社外からの確認も可能。写真も同期されます）。</li>
                 <li>毎月の棚卸時にバックアップ（JSON）やCSVを出力して保管することを推奨します。</li>
               </ul>
-              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.7（バナー表示修正）｜札幌中野冷機株式会社</p>
+              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.8（エラー可視化・同期ボタン二重保証）｜札幌中野冷機株式会社</p>
             </div>
           </div>
         </div>
@@ -3723,7 +3725,7 @@ function cSignOut(){
 })();
 setInterval(()=>{if(document.visibilityState==='visible'&&C.ready&&!C.syncing)cSync(false).catch(()=>{});},60000);
 /* ================= 自動更新チェック ================= */
-const APP_VER='3.7';let updChk=false;
+const APP_VER='3.8';let updChk=false;
 function cmpV(a,b){const pa=String(a).split('.').map(Number),pb=String(b).split('.').map(Number);
   for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i]||0,y=pb[i]||0;if(x!==y)return x-y;}return 0;}
 async function checkUpdate(){
@@ -5014,8 +5016,8 @@ init();
 /* 配信版: 空データ時のガイドバナー */
 let bnDismissed=false;
 function updateBanner(){const b=document.getElementById('dataBanner');if(!b)return;let ext=0;try{const st=JSON.parse(localStorage.getItem(KEY)||'null');if(st&&Array.isArray(st.parts))ext=st.parts.length;}catch(e){}b.hidden=(S.parts&&S.parts.length>0)||ext>0||bnDismissed;}
-const _rc=refreshChrome;
-refreshChrome=function(){_rc();updateBanner();};
+try{const _rc=refreshChrome;refreshChrome=function(){_rc();updateBanner();};}catch(e){}
+try{document.addEventListener('click',function(e){const t=e.target&&e.target.closest?e.target.closest('#btnCloudSync'):null;if(t&&!C.ready)toast('未接続です','err');if(t&&C.ready&&!C.syncing)cSync(true);},true);}catch(e){}
 document.addEventListener('click',e=>{if(e.target&&e.target.id==='bnX'){bnDismissed=true;updateBanner();}});
 updateBanner();
 
