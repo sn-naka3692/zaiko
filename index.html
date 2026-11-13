@@ -587,7 +587,7 @@ th.tcol-img{width:54px}
                 <li>Microsoft 365同期：設定の「Microsoft 365 クラウド同期」でサインインすると、SharePointリスト経由で全端末が同じ在庫を共有できます（社外からの確認も可能。写真も同期されます）。</li>
                 <li>毎月の棚卸時にバックアップ（JSON）やCSVを出力して保管することを推奨します。</li>
               </ul>
-              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 2.6（0円在庫・売価・自動更新対応）｜札幌中野冷機株式会社</p>
+              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 2.7（部品コード・型式分離対応）｜札幌中野冷機株式会社</p>
             </div>
           </div>
         </div>
@@ -3163,7 +3163,7 @@ function save(){
   try{snapshot();}catch(e){}
   if(C.ready&&!C.flushT){C.flushT=setTimeout(()=>{C.flushT=null;cFlush().catch(()=>{});},2500);}
 }
-const FIELDMAP={code:'型式・部品番号',name:'部品名',maker:'出荷メーカー',category:'カテゴリ',model:'使用機種',spec:'部品関連情報',location:'保管場所',unit:'単位',cost:'原価',price:'定価',stock:'在庫数',reorder:'発注点',memo:'社内メモ',updatedAt:'updatedAt',company:'company'};
+const FIELDMAP={code:'型式・部品番号',name:'部品名',kata:'型式',maker:'出荷メーカー',category:'カテゴリ',model:'使用機種',spec:'部品関連情報',location:'保管場所',unit:'単位',cost:'原価',price:'定価',stock:'在庫数',reorder:'発注点',memo:'社内メモ',updatedAt:'updatedAt',company:'company'};
 function fkey(listId,n){
   const mapped=(listId===C.cfg.listP&&FIELDMAP[n])?FIELDMAP[n]:((C.cfg.colPrefix||'')+n);
   const want=String(mapped).toLowerCase();
@@ -3183,7 +3183,7 @@ async function cLoadCols(listId){
 function pnum(L,fk,v){const t=(C.colTypes[L]||{})[fk];if(t==='text')return String(v==null?'':v);return Number(v)||0;}
 function partToFields(p){
   const L=C.cfg.listP,o={};
-  o[fkey(L,'code')]=p.code||'';o[fkey(L,'name')]=p.name||'';
+  o[fkey(L,'code')]=p.code||'';o[fkey(L,'name')]=p.name||'';o[fkey(L,'kata')]=p.kata||'';
   o[fkey(L,'category')]=p.category||'';o[fkey(L,'maker')]=p.maker||'';
   o[fkey(L,'model')]=p.model||'';o[fkey(L,'spec')]=p.spec||'';
   o[fkey(L,'location')]=p.location||'';o[fkey(L,'unit')]=p.unit||'';
@@ -3194,7 +3194,7 @@ function partToFields(p){
 }
 function fieldsToPart(f){
   const L=C.cfg.listP,g=n=>{const v=f[fkey(L,n)];return v===undefined||v===null?'':v;};
-  return {code:String(g('code')),name:String(g('name')),category:String(g('category')),
+  return {code:String(g('code')),name:String(g('name')),kata:String(g('kata')),category:String(g('category')),
     maker:String(g('maker')),model:String(g('model')),spec:String(g('spec')),
     location:String(g('location')),unit:String(g('unit')),
     cost:Number(g('cost'))||0,price:Number(g('price'))||0,stock:Number(g('stock'))||0,
@@ -3306,7 +3306,7 @@ async function cEnsureCols(){
     const j=await r.json();
     const have={};
     (j.value||[]).forEach(c=>{if(c&&c.name){have[String(c.name).toLowerCase()]=1;if(c.displayName)have[String(c.displayName).toLowerCase()]=1;}});
-    const need=[['在庫数','number'],['発注点','number'],['updatedAt','text']];
+    const need=[['在庫数','number'],['発注点','number'],['updatedAt','text'],['型式','text']];
     for(const pr of need){
       if(!have[pr[0].toLowerCase()]){
         const def={};def[pr[1]]={};
@@ -3689,7 +3689,7 @@ function cSignOut(){
 })();
 setInterval(()=>{if(document.visibilityState==='visible'&&C.ready&&!C.syncing)cSync(false).catch(()=>{});},60000);
 /* ================= 自動更新チェック ================= */
-const APP_VER='2.6';let updChk=false;
+const APP_VER='2.7';let updChk=false;
 function cmpV(a,b){const pa=String(a).split('.').map(Number),pb=String(b).split('.').map(Number);
   for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i]||0,y=pb[i]||0;if(x!==y)return x-y;}return 0;}
 async function checkUpdate(){
@@ -4297,7 +4297,7 @@ function importPartsCSV(file){
         const g=i=>(i>=0&&r[i]!=null?String(r[i]).trim():'');
         const num=i=>{const raw=g(i);if(raw==='')return 0;const v=Number(raw.replace(/[,\s]/g,''));return isFinite(v)?v:0;};
         const code=g(ic);if(!code)return;
-        const data={code,name:g(inm)||code,category:g(idx('カテゴリ')),maker:g(idx('メーカー')),
+        const data={code,name:g(inm)||code,kata:g(idx('型式')),category:g(idx('カテゴリ')),maker:g(idx('メーカー')),
           model:g(idx('型番')),spec:g(idx('規格・仕様')),location:g(idx('保管場所')),
           unit:g(idx('単位'))||'個',cost:num(idx('購入単価')),price:num(idx('販売単価')),
           stock:num(idx('現在庫')),reorder:num(idx('発注点')),memo:g(idx('メモ')),sample:false};
