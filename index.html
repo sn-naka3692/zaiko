@@ -591,7 +591,7 @@ window.addEventListener('unhandledrejection',function(e){esh('未処理の例外
                 <li>Microsoft 365同期：設定の「Microsoft 365 クラウド同期」でサインインすると、SharePointリスト経由で全端末が同じ在庫を共有できます（社外からの確認も可能。写真も同期されます）。</li>
                 <li>毎月の棚卸時にバックアップ（JSON）やCSVを出力して保管することを推奨します。</li>
               </ul>
-              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.15（列名の検証強化）（送信失敗の原因表示）｜札幌中野冷機株式会社</p>
+              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.16（列の自動追加）（送信失敗の原因表示）｜札幌中野冷機株式会社</p>
             </div>
           </div>
         </div>
@@ -3316,7 +3316,8 @@ async function cEnsureCols(){
     const j=await r.json();
     const have={};
     (j.value||[]).forEach(c=>{if(c&&c.name){have[String(c.name).toLowerCase()]=1;if(c.displayName)have[String(c.displayName).toLowerCase()]=1;}});
-    const need=[['在庫数','number'],['発注点','number'],['updatedAt','text'],['型式','text']];
+    const num={cost:1,price:1,stock:1,reorder:1};
+    const need=Object.keys(FIELDMAP).filter(n=>n!=='company').map(n=>[FIELDMAP[n],num[n]?'number':'text']);
     for(const pr of need){
       if(!have[pr[0].toLowerCase()]){
         const def={};def[pr[1]]={};
@@ -3522,8 +3523,14 @@ async function cFlushCore(){
   for(const lid in _need){await cLoadCols(lid);}
   const _pm=C.colMaps[C.cfg.listP];
   if(!_pm||!Object.keys(_pm).length)throw new Error('リスト列の情報を取得できませんでした（通信またはレート制限）。数十秒待ってからもう一度同期してください');
-  const _miss=Object.keys(FIELDMAP).filter(n=>n!=='company'&&!_pm[String(FIELDMAP[n]).toLowerCase()]);
-  if(_miss.length)throw new Error('接続先リストに列が見つかりません: '+_miss.map(n=>FIELDMAP[n]).join('・')+'｜リスト名設定を確認してください');
+  let _miss=Object.keys(FIELDMAP).filter(n=>n!=='company'&&!_pm[String(FIELDMAP[n]).toLowerCase()]);
+  if(_miss.length){
+    await cEnsureCols();
+    await cLoadCols(C.cfg.listP);
+    const _pm2=C.colMaps[C.cfg.listP]||{};
+    _miss=Object.keys(FIELDMAP).filter(n=>n!=='company'&&!_pm2[String(FIELDMAP[n]).toLowerCase()]);
+    if(_miss.length)throw new Error('リストに列を追加できませんでした: '+_miss.map(n=>FIELDMAP[n]).join('・')+'（権限または列名を確認してください）');
+  }
   C.failOps=0;
   const ops=[];
   const pBase='/sites/'+C.cfg.siteId+'/lists/'+C.cfg.listP+'/items';
@@ -3742,7 +3749,7 @@ function cSignOut(){
 })();
 setInterval(()=>{if(document.visibilityState==='visible'&&C.ready&&!C.syncing)cSync(false).catch(()=>{});},60000);
 /* ================= 自動更新チェック ================= */
-const APP_VER='3.15';let updChk=false;
+const APP_VER='3.16';let updChk=false;
 function cmpV(a,b){const pa=String(a).split('.').map(Number),pb=String(b).split('.').map(Number);
   for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i]||0,y=pb[i]||0;if(x!==y)return x-y;}return 0;}
 async function checkUpdate(){
