@@ -591,7 +591,7 @@ window.addEventListener('unhandledrejection',function(e){esh('未処理の例外
                 <li>Microsoft 365同期：設定の「Microsoft 365 クラウド同期」でサインインすると、SharePointリスト経由で全端末が同じ在庫を共有できます（社外からの確認も可能。写真も同期されます）。</li>
                 <li>毎月の棚卸時にバックアップ（JSON）やCSVを出力して保管することを推奨します。</li>
               </ul>
-              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.13（同期ループ対策）（送信失敗の原因表示）｜札幌中野冷機株式会社</p>
+              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.14（列名解決の修正）（送信失敗の原因表示）｜札幌中野冷機株式会社</p>
             </div>
           </div>
         </div>
@@ -3518,6 +3518,9 @@ async function cBatchPush(ops){
 }
 async function cFlushCore(){
   if(!C.ready)return;
+  const _need={};_need[C.cfg.listP]=1;_need[C.cfg.listM]=1;if(C.cfg.listV)_need[C.cfg.listV]=1;if(C.cfg.listZ)_need[C.cfg.listZ]=1;
+  for(const lid in _need){if(!C.colMaps[lid])await cLoadCols(lid);}
+  if(!C.colMaps[C.cfg.listP])throw new Error('リスト列の情報を取得できませんでした（通信またはレート制限）。数十秒待ってからもう一度同期してください');
   C.failOps=0;
   const ops=[];
   const pBase='/sites/'+C.cfg.siteId+'/lists/'+C.cfg.listP+'/items';
@@ -3530,7 +3533,7 @@ async function cFlushCore(){
     if(id)ops.push({method:'DELETE',url:pBase+'/'+id,kind:'delP',code:code});
     else C.delP.delete(code);
   });
-  C.delM.forEach(mid=>{
+  if(C.colMaps[C.cfg.listM])C.delM.forEach(mid=>{
     const id=C.moveItems[mid];
     if(id)ops.push({method:'DELETE',url:mBase+'/'+id,kind:'delM',mid:mid});
     else C.delM.delete(mid);
@@ -3542,13 +3545,13 @@ async function cFlushCore(){
     if(id)ops.push({method:'PATCH',url:pBase+'/'+id+'/fields',body:{fields:partToFields(p)},kind:'editP',code:p.code});
     else ops.push({method:'POST',url:pBase,body:{fields:partToFields(p)},kind:'newP',code:p.code});
   });
-  (S.moves||[]).forEach(m=>{
+  if(C.colMaps[C.cfg.listM])(S.moves||[]).forEach(m=>{
     if(!m||!C.dirtyM.has(m.id))return;
     const id=C.moveItems[m.id];
     if(id)ops.push({method:'PATCH',url:mBase+'/'+id+'/fields',body:{fields:moveToFields(m)},kind:'editM',mid:m.id});
     else ops.push({method:'POST',url:mBase,body:{fields:moveToFields(m)},kind:'newM',mid:m.id});
   });
-  if(C.cfg.listV&&C.dirtyV.size){
+  if(C.cfg.listV&&C.colMaps[C.cfg.listV]&&C.dirtyV.size){
     C.dirtyV.forEach(k=>{
       if(k==='__VEH__'){
         const id=C.vItems['__VEH__'];
@@ -3569,7 +3572,7 @@ async function cFlushCore(){
       else ops.push({method:'POST',url:vBase,body:{fields:vf},kind:'newV',key:k});
     });
   }
-  if(C.cfg.listZ&&C.dirtyZ.size){
+  if(C.cfg.listZ&&C.colMaps[C.cfg.listZ]&&C.dirtyZ.size){
     C.dirtyZ.forEach(k=>{
       const o=(S.zeroStock&&S.zeroStock[k])||{};
       const id=C.zItems[k];
@@ -3736,7 +3739,7 @@ function cSignOut(){
 })();
 setInterval(()=>{if(document.visibilityState==='visible'&&C.ready&&!C.syncing)cSync(false).catch(()=>{});},60000);
 /* ================= 自動更新チェック ================= */
-const APP_VER='3.13';let updChk=false;
+const APP_VER='3.14';let updChk=false;
 function cmpV(a,b){const pa=String(a).split('.').map(Number),pb=String(b).split('.').map(Number);
   for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i]||0,y=pb[i]||0;if(x!==y)return x-y;}return 0;}
 async function checkUpdate(){
