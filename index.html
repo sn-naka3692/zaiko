@@ -589,7 +589,7 @@ th.tcol-img{width:54px}
                 <li>Microsoft 365同期：設定の「Microsoft 365 クラウド同期」でサインインすると、SharePointリスト経由で全端末が同じ在庫を共有できます（社外からの確認も可能。写真も同期されます）。</li>
                 <li>毎月の棚卸時にバックアップ（JSON）やCSVを出力して保管することを推奨します。</li>
               </ul>
-              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.4（自動同期搭載）｜札幌中野冷機株式会社</p>
+              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.5（リスト名互換修正）｜札幌中野冷機株式会社</p>
             </div>
           </div>
         </div>
@@ -3120,7 +3120,7 @@ function cload(){try{C.cfg=JSON.parse(localStorage.getItem(CKEY)||'null');}catch
   C.cfg.viewOnly=!!C.cfg.viewOnly;C.cfg.colPrefix=C.cfg.colPrefix||'';
   C.cfg.listV=C.cfg.listV||'';C.cfg.listVName=C.cfg.listVName||'';
   C.cfg.listZ=C.cfg.listZ||'';C.cfg.listZName=C.cfg.listZName||'';
-  const DEF={clientId:'14fd6f45-445d-40ee-a263-8edf36a36380',siteUrl:'https://sapporonakano.sharepoint.com/sites/sn-portal',listPName:'札中 部品マスター'};
+  const DEF={clientId:'14fd6f45-445d-40ee-a263-8edf36a36380',siteUrl:'https://sapporonakano.sharepoint.com/sites/sn-portal',listPName:'札中　部品マスター'};
   if(!C.cfg.clientId)C.cfg.clientId=DEF.clientId;
   if(!C.cfg.siteId)C.cfg.defSiteUrl=C.cfg.defSiteUrl||DEF.siteUrl;
   if(!C.cfg.listPName)C.cfg.listPName=DEF.listPName;}
@@ -3294,13 +3294,13 @@ async function cEnsureLists(){
   if(!r.ok)throw new Error('リスト一覧の取得に失敗しました（HTTP '+r.status+'）');
   const j=await r.json();const lists=j.value||[];
   const pName=C.cfg.listPName||LIST_P_NAME;
-  let lp=lists.find(l=>l.displayName===pName);
-  let lm=lists.find(l=>l.displayName===LIST_M_NAME);
+  let lp=lists.find(l=>l.displayName===pName)||lists.find(l=>normNm(l.displayName)===normNm(pName));
+  let lm=lists.find(l=>l.displayName===LIST_M_NAME)||lists.find(l=>normNm(l.displayName)===normNm(LIST_M_NAME));
   if(!lp)lp=await cCreateList(pName,[{name:'型式・部品番号',text:{}},{name:'部品名',text:{}},{name:'出荷メーカー',text:{}},{name:'カテゴリ',text:{}},{name:'使用機種',text:{}},{name:'部品関連情報',text:{}},{name:'保管場所',text:{}},{name:'単位',text:{}},{name:'原価',number:{}},{name:'定価',number:{}},{name:'在庫数',number:{}},{name:'発注点',number:{}},{name:'社内メモ',text:{}},{name:'updatedAt',text:{}}]);
   if(!lm)lm=await cCreateList(LIST_M_NAME,[{name:'mid',text:{}},{name:'date',text:{}},{name:'type',text:{}},{name:'code',text:{}},{name:'name',text:{}},{name:'qty',number:{}},{name:'user',text:{}},{name:'job',text:{}},{name:'memo',text:{}},{name:'createdAt',text:{}}]);
-  let lv=lists.find(l=>l.displayName===LIST_V_NAME);
+  let lv=lists.find(l=>l.displayName===LIST_V_NAME)||lists.find(l=>normNm(l.displayName)===normNm(LIST_V_NAME));
   if(!lv)lv=await cCreateList(LIST_V_NAME,[{name:'vcode',text:{}},{name:'vloc',text:{}},{name:'qty',number:{}},{name:'updatedAt',text:{}}]);
-  let lz=lists.find(l=>l.displayName===LIST_Z_NAME);
+  let lz=lists.find(l=>l.displayName===LIST_Z_NAME)||lists.find(l=>normNm(l.displayName)===normNm(LIST_Z_NAME));
   if(!lz)lz=await cCreateList(LIST_Z_NAME,[{name:'zcode',text:{}},{name:'qty',number:{}},{name:'price',number:{}},{name:'updatedAt',text:{}}]);
   C.cfg.listP=lp.id;C.cfg.listM=lm.id;C.cfg.listV=lv.id;C.cfg.listZ=lz.id;C.cfg.listPName=lp.displayName;C.cfg.listMName=lm.displayName;C.cfg.listVName=lv.displayName;C.cfg.listZName=lz.displayName;csaveCfg();
   await cEnsureCols();
@@ -3338,6 +3338,7 @@ async function cEnsureCols(){
     await cLoadCols(C.cfg.listP);
   }catch(e){}
 }
+function normNm(s){return String(s||'').replace(/\u3000/g,' ').replace(/\s+/g,' ').trim();}
 async function cConnect(urlInput){
   await cResolveSite(urlInput);
   await cEnsureLists();
@@ -3721,7 +3722,7 @@ function cSignOut(){
 })();
 setInterval(()=>{if(document.visibilityState==='visible'&&C.ready&&!C.syncing)cSync(false).catch(()=>{});},60000);
 /* ================= 自動更新チェック ================= */
-const APP_VER='3.4';let updChk=false;
+const APP_VER='3.5';let updChk=false;
 function cmpV(a,b){const pa=String(a).split('.').map(Number),pb=String(b).split('.').map(Number);
   for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i]||0,y=pb[i]||0;if(x!==y)return x-y;}return 0;}
 async function checkUpdate(){
