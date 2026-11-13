@@ -591,7 +591,7 @@ window.addEventListener('unhandledrejection',function(e){esh('未処理の例外
                 <li>Microsoft 365同期：設定の「Microsoft 365 クラウド同期」でサインインすると、SharePointリスト経由で全端末が同じ在庫を共有できます（社外からの確認も可能。写真も同期されます）。</li>
                 <li>毎月の棚卸時にバックアップ（JSON）やCSVを出力して保管することを推奨します。</li>
               </ul>
-              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.21（403理由の取得）（送信失敗の原因表示）｜札幌中野冷機株式会社</p>
+              <p class="set-note" style="margin-top:10px;color:var(--ink3)">部品・在庫管理 ver 3.22（システム列の排除）（送信失敗の原因表示）｜札幌中野冷機株式会社</p>
             </div>
           </div>
         </div>
@@ -3186,7 +3186,8 @@ async function cLoadCols(listId){
     const r=await gfetch('/sites/'+C.cfg.siteId+'/lists/'+listId+'/columns?top=999');
     if(!r.ok){C.lastErr='列一覧の取得に失敗しました（HTTP '+r.status+'）';return;}
     const j=await r.json();const m={};const t={};
-    (j.value||[]).forEach(c=>{if(c&&c.name){m[normKey(c.name)]=c.name;if(c.displayName)m[normKey(c.displayName)]=c.name;t[c.name]=(c.number!==undefined)?'number':'text';}});
+    const _sys={linktitle:1,complianceassetid:1,contenttypeid:1,attachments:1,_uiversionstring:1,_commentcount:1,_likecount:1,_copysource:1,edit:1,itemchildcount:1};
+    (j.value||[]).forEach(c=>{if(c&&c.name){const nk=normKey(c.name);const dk=c.displayName?normKey(c.displayName):'';if(_sys[nk]||c.readOnly)return;if(dk&&_sys[dk])return;m[nk]=c.name;if(dk)m[dk]=c.name;t[c.name]=(c.number!==undefined)?'number':'text';}});
     C.colMaps[listId]=m;C.colTypes[listId]=t;
   }catch(e){}
 }
@@ -3517,7 +3518,7 @@ async function cBatchPush(ops){
         const e403=(rr.body&&rr.body.error)?(String(rr.body.error.code||'')+' '+String(rr.body.error.message||'')).slice(0,180):'';
         if(C.p403<=5){C.throttleUntil=Date.now()+180000;C.lastErr='書き込み拒否（HTTP 403・'+C.p403+'回目）：'+e403+'｜3分待って自動再試行します';}
         else{C.lastErr='書き込み拒否が継続（HTTP 403×'+C.p403+'）：'+e403+'｜対象: '+op.method+' '+String(op.url).replace('/sites/','サイト/');}
-      }else{C.failOps=(C.failOps||0)+1;const em=(rr.body&&rr.body.error&&rr.body.error.message)?String(rr.body.error.message):'';if(em)C.lastErr='送信エラー（HTTP '+rr.status+'）：'+em.slice(0,150);}
+      }else{C.failOps=(C.failOps||0)+1;const em=(rr.body&&rr.body.error&&rr.body.error.message)?String(rr.body.error.message):'';C.lastErr='送信エラー（HTTP '+rr.status+'）：'+em.slice(0,150)+'｜対象: '+op.method+' '+String(op.url).replace('/sites/','サイト/');}
     });
   }
 }
@@ -3535,7 +3536,7 @@ async function cFlushCore(){
     _miss=Object.keys(FIELDMAP).filter(n=>n!=='company'&&!_pm2[normKey(FIELDMAP[n])]);
     if(_miss.length)throw new Error('リストに列を追加できませんでした: '+_miss.map(n=>FIELDMAP[n]).join('・')+'（権限または列名を確認してください）');
   }
-  C.failOps=0;
+  C.failOps=0;const _sys2={linktitle:1,complianceassetid:1,contenttypeid:1,attachments:1,_uiversionstring:1,_commentcount:1,_likecount:1,_copysource:1,edit:1,itemchildcount:1};
   const ops=[];
   const pBase='/sites/'+C.cfg.siteId+'/lists/'+C.cfg.listP+'/items';
   const mBase='/sites/'+C.cfg.siteId+'/lists/'+C.cfg.listM+'/items';
@@ -3596,6 +3597,8 @@ async function cFlushCore(){
       else ops.push({method:'POST',url:zBase,body:{fields:zf},kind:'newZ',key:k});
     });
   }
+  const _strip=o=>{const r={};for(const k in o){if(_sys2[String(k).toLowerCase()])continue;r[k]=o[k];}return r;};
+  ops.forEach(op=>{if(op.body&&op.body.fields)op.body.fields=_strip(op.body.fields);});
   if(ops.length){C.syncProg={total:ops.length,done:0};for(let bi=0;bi<ops.length;bi+=20){if(Date.now()<(C.throttleUntil||0))break;await cBatchPush(ops.slice(bi,bi+20));C.syncProg.done=Math.min(bi+20,ops.length);updateCloudUI();await new Promise(r=>setTimeout(r,1200));}}
 }
 async function cFlush(){
@@ -3753,7 +3756,7 @@ function cSignOut(){
 })();
 setInterval(()=>{if(document.visibilityState==='visible'&&C.ready&&!C.syncing)cSync(false).catch(()=>{});},60000);
 /* ================= 自動更新チェック ================= */
-const APP_VER='3.21';let updChk=false;
+const APP_VER='3.22';let updChk=false;
 function cmpV(a,b){const pa=String(a).split('.').map(Number),pb=String(b).split('.').map(Number);
   for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i]||0,y=pb[i]||0;if(x!==y)return x-y;}return 0;}
 async function checkUpdate(){
