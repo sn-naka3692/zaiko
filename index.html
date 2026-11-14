@@ -542,6 +542,7 @@ window.addEventListener('unhandledrejection',function(e){esh('未処理の例外
                   <table style="border-collapse:collapse;width:100%;font-size:12px;margin-top:4px">
                     <tr style="background:#EAF3FC"><th style="border:1px solid #dce9f5;padding:4px 6px;text-align:left">版</th><th style="border:1px solid #dce9f5;padding:4px 6px;text-align:left">内容</th></tr>
                     <tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.3</td><td style="border:1px solid #dce9f5;padding:4px 6px">一般公開（GitHub Pages・Entra権限修正）</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.4</td><td style="border:1px solid #dce9f5;padding:4px 6px">自動同期（30秒送信／5分受信）</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.5</td><td style="border:1px solid #dce9f5;padding:4px 6px">リスト名「札中　部品マスター」（全角スペース）対応</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.6</td><td style="border:1px solid #dce9f5;padding:4px 6px">同期ボタンに進捗表示</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.8</td><td style="border:1px solid #dce9f5;padding:4px 6px">エラー可視化（赤帯errTrap）</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.9</td><td style="border:1px solid #dce9f5;padding:4px 6px">レート制限(429)対策・20件バッチ送信</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.11</td><td style="border:1px solid #dce9f5;padding:4px 6px">同期進捗「送信中 X/Y件」表示</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.13</td><td style="border:1px solid #dce9f5;padding:4px 6px">日時比較を分精度に変更（再送ループ解消）</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.14〜3.17</td><td style="border:1px solid #dce9f5;padding:4px 6px">列名突合強化（colMaps再取得・FIELDMAP検証・足りない列の自動追加・normKey照合）</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.18</td><td style="border:1px solid #dce9f5;padding:4px 6px">「部品コード」列を正とし両列に書込</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.22〜3.24</td><td style="border:1px solid #dce9f5;padding:4px 6px">読み取り専用列(Title)別名・システム列除外・5xx再試行・255字制限</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.25</td><td style="border:1px solid #dce9f5;padding:4px 6px">同期パイプライン完成（原因究明ツールculprit二分探査）</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.26</td><td style="border:1px solid #dce9f5;padding:4px 6px">0円在庫に原価欄追加（リストにもcost列自動追加）</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.27</td><td style="border:1px solid #dce9f5;padding:4px 6px">原価×掛け率の双方向計算・サイドバーに最終同期時刻</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.28</td><td style="border:1px solid #dce9f5;padding:4px 6px">アプリ起動ロック（端末単位パスワード）</td></tr><tr><td style="border:1px solid #dce9f5;padding:4px 6px;white-space:nowrap">3.29</td><td style="border:1px solid #dce9f5;padding:4px 6px">保守情報（本節）を追加</td></tr>
+                  <tr><td style="border:1px solid #dce9f5;padding:4px 6px">3.31</td><td style="border:1px solid #dce9f5;padding:4px 6px">使い方画面に操作マニュアル（PDF）へのリンクを設置（全員向け）</td></tr>
                   </table>
                 </div>
               </details>
@@ -3819,7 +3820,7 @@ const bc=$id('btnCloudCfg');if(bc)bc.addEventListener('click',()=>{C.cfg.clientI
 })();
 setInterval(()=>{if(document.visibilityState==='visible'&&C.ready&&!C.syncing)cSync(false).catch(()=>{});},60000);
 /* ================= 自動更新チェック ================= */
-const APP_VER='3.30';let updChk=false;
+const APP_VER='3.31';let updChk=false;
 function cmpV(a,b){const pa=String(a).split('.').map(Number),pb=String(b).split('.').map(Number);
   for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i]||0,y=pb[i]||0;if(x!==y)return x-y;}return 0;}
 async function checkUpdate(){
@@ -6070,6 +6071,7 @@ var GD_SECTION=
     '<li>スマホはブラウザメニューの「<b>ホーム画面に追加</b>」でアイコン化（名前：札幌中野冷機　在庫）</li>'+
     '</ol>'+
     '<p style="font-size:12px;color:#555;margin:8px 0 0">※ LINEやSafariのアプリ内ブラウザでは開かず、Chromeで開いてください。<br>※ 更新は自動で行われます。バージョンを気にする必要はありません。<br>※ 在庫データは会社のSharePointで共有されるため、どの端末でも同じ在庫が見えます。</p>'+
+    '<p style="margin:10px 0 0"><a href="https://sn-naka3692.github.io/zaiko/nakano-zaiko-manual.pdf" target="_blank" rel="noopener" style="display:inline-block;background:#0F6BF0;color:#fff;border-radius:8px;padding:8px 14px;font-weight:700;text-decoration:none;font-size:13px">📄 操作マニュアル（PDF）を開く</a><span style="font-size:12px;color:#555;margin-left:8px">別タブで開きます</span></p>'+
   '</div>'+
 
 
